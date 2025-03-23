@@ -97,15 +97,15 @@ export default function Signup() {
   };
   
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView className="flex-1 bg-white">
+      <StatusBar barStyle="dark-content" />
       
       {/* Close button */}
       <TouchableOpacity 
         className="absolute top-12 right-6 z-10" 
         onPress={() => router.back()}
       >
-        <Ionicons name="close" size={24} color="#fff" />
+        <Ionicons name="close" size={24} color="#333" />
       </TouchableOpacity>
 
       <KeyboardAvoidingView 
@@ -121,19 +121,19 @@ export default function Signup() {
             }}
           >
             {/* Welcome Text */}
-            <Text className="text-white text-4xl font-bold mb-2 text-center">
+            <Text className="text-gray-900 text-4xl font-bold mb-2 text-center">
               Create Account
             </Text>
-            <Text className="text-gray-400 text-xl mb-10 text-center">
+            <Text className="text-gray-600 text-xl mb-10 text-center">
               Start your journaling journey
             </Text>
             
             {/* Input Fields */}
             <View className="mb-3">
               <TextInput
-                className="bg-zinc-900 text-white py-3 px-5 rounded-full text-base"
+                className="bg-gray-100 text-gray-900 py-3 px-5 rounded-full text-base"
                 placeholder="Your Name"
-                placeholderTextColor="#666"
+                placeholderTextColor="#999"
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
@@ -142,9 +142,9 @@ export default function Signup() {
             
             <View className="mb-3">
               <TextInput
-                className="bg-zinc-900 text-white py-3 px-5 rounded-full text-base"
+                className="bg-gray-100 text-gray-900 py-3 px-5 rounded-full text-base"
                 placeholder="Your Email"
-                placeholderTextColor="#666"
+                placeholderTextColor="#999"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -154,9 +154,9 @@ export default function Signup() {
             
             <View className="mb-3">
               <TextInput
-                className="bg-zinc-900 text-white py-3 px-5 rounded-full text-base"
+                className="bg-gray-100 text-gray-900 py-3 px-5 rounded-full text-base"
                 placeholder="Create Password"
-                placeholderTextColor="#666"
+                placeholderTextColor="#999"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -165,9 +165,9 @@ export default function Signup() {
             
             <View className="mb-2">
               <TextInput
-                className={`bg-zinc-900 text-white py-3 px-5 rounded-full text-base ${!passwordsMatch ? 'border border-red-500' : ''}`}
+                className={`bg-gray-100 text-gray-900 py-3 px-5 rounded-full text-base ${!passwordsMatch ? 'border border-red-500' : ''}`}
                 placeholder="Confirm Password"
-                placeholderTextColor="#666"
+                placeholderTextColor="#999"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
@@ -182,35 +182,35 @@ export default function Signup() {
             )}
             
             {/* Terms and Privacy */}
-            <Text className="text-gray-400 text-center mb-8">
+            <Text className="text-gray-500 text-center mb-8">
               By signing up, you agree to our{' '}
-              <Text className="text-blue-400">Terms of Service</Text> and{' '}
-              <Text className="text-blue-400">Privacy Policy</Text>
+              <Text className="text-gray-700">Terms of Service</Text> and{' '}
+              <Text className="text-gray-700">Privacy Policy</Text>
             </Text>
             
             {/* Sign Up Button */}
             <TouchableOpacity 
-              className="bg-white py-3 rounded-full mb-6"
+              className="bg-gray-900 py-3 rounded-full mb-6"
               onPress={handleSignUp}
             >
-              <Text className="text-black text-center text-base font-semibold">
+              <Text className="text-white text-center text-base font-semibold">
                 Create Account
               </Text>
             </TouchableOpacity>
             
             {/* Divider */}
             <View className="flex-row items-center mb-6">
-              <View className="flex-1 h-[1px] bg-zinc-800" />
-              <Text className="text-gray-400 mx-4">or</Text>
-              <View className="flex-1 h-[1px] bg-zinc-800" />
+              <View className="flex-1 h-[1px] bg-gray-300" />
+              <Text className="text-gray-500 mx-4">or</Text>
+              <View className="flex-1 h-[1px] bg-gray-300" />
             </View>
             
             {/* Continue with Google */}
             <TouchableOpacity 
-              className="bg-zinc-900 py-3 rounded-full mb-6 flex-row justify-center items-center"
+              className="bg-gray-200 py-3 rounded-full mb-6 flex-row justify-center items-center"
             >
-              <Ionicons name="logo-google" size={18} color="#fff" style={{ marginRight: 8 }} />
-              <Text className="text-white text-center text-base">
+              <Ionicons name="logo-google" size={18} color="#333" style={{ marginRight: 8 }} />
+              <Text className="text-gray-900 text-center text-base">
                 Continue with Google
               </Text>
             </TouchableOpacity>
@@ -220,8 +220,8 @@ export default function Signup() {
               className="mb-8"
               onPress={() => router.push('/modal/signin')}
             >
-              <Text className="text-gray-400 text-center">
-                Already have an account? <Text className="text-blue-400">Sign in</Text>
+              <Text className="text-gray-500 text-center">
+                Already have an account? <Text className="text-gray-700">Sign in</Text>
               </Text>
             </TouchableOpacity>
           </Animated.View>

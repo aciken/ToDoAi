@@ -45,8 +45,8 @@ export default function WelcomePage() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <StatusBar style="light" />
+    <SafeAreaView className="flex-1 bg-white">
+      <StatusBar style="dark" />
       
       <Animated.View 
         className="flex-1 px-6 justify-between"
@@ -72,26 +72,26 @@ export default function WelcomePage() {
 
         {/* Bottom Section - Welcome Text and Buttons */}
         <View className="w-full items-center mb-10">
-          <Text className="text-white text-4xl font-bold mb-3 text-center">
+          <Text className="text-gray-900 text-4xl font-bold mb-3 text-center">
             App Name
           </Text>
           
-          <Text className="text-gray-300 text-center text-lg mb-10">
+          <Text className="text-gray-700 text-center text-lg mb-10">
             Your app's description goes here. Highlight main features and benefits.
           </Text>
           
           <Link href="/modal/signup" asChild>
             <TouchableOpacity 
-              className="bg-white w-full py-4 rounded-full mb-4"
+              className="bg-gray-900 w-full py-4 rounded-full mb-4"
               style={{
-                shadowColor: "#fff",
+                shadowColor: "#000",
                 shadowOffset: { width: 0, height: 0 },
                 shadowOpacity: 0.1,
                 shadowRadius: 10,
                 elevation: 5,
               }}
             >
-              <Text className="text-black text-center text-lg font-semibold">
+              <Text className="text-white text-center text-lg font-semibold">
                 Get Started
               </Text>
             </TouchableOpacity>
@@ -99,7 +99,7 @@ export default function WelcomePage() {
           
           <Link href="/modal/signin" asChild>
             <TouchableOpacity>
-              <Text className="text-gray-400 text-center text-base">
+              <Text className="text-gray-500 text-center text-base">
                 Already have an account?
               </Text>
             </TouchableOpacity>

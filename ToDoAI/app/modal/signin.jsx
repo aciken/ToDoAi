@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 // Temporarily comment out AsyncStorage if not installed
 // import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 // import axios from 'axios';
 
 export default function Signin() {
+  const router = useRouter();
   // Remove GlobalContext reference temporarily
   // const { setUser } = useGlobalContext();
   const [email, setEmail] = useState('');
@@ -49,7 +51,8 @@ export default function Signin() {
 
   const handleSignIn = async () => {
     // For testing purposes, just show an alert
-    Alert.alert("Sign In", `Email: ${email}`);
+    router.back();
+    router.push('/main/Home');
     
     // Uncomment when ready to implement actual signin logic
     /*
@@ -72,21 +75,19 @@ export default function Signin() {
     */
     
     // For now, just navigate back
-    setTimeout(() => {
-      router.back();
-    }, 1000);
+
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView className="flex-1 bg-white">
+      <StatusBar barStyle="dark-content" />
       
       {/* Close button */}
       <TouchableOpacity 
         className="absolute top-12 right-6 z-10" 
         onPress={() => router.back()}
       >
-        <Ionicons name="close" size={24} color="#fff" />
+        <Ionicons name="close" size={24} color="#333" />
       </TouchableOpacity>
 
       <KeyboardAvoidingView 
@@ -102,19 +103,19 @@ export default function Signin() {
             }}
           >
             {/* Welcome Text */}
-            <Text className="text-white text-4xl font-bold mb-2 text-center">
+            <Text className="text-gray-900 text-4xl font-bold mb-2 text-center">
               Welcome back
             </Text>
-            <Text className="text-gray-400 text-xl mb-10 text-center">
+            <Text className="text-gray-600 text-xl mb-10 text-center">
               Let's get you in to your journal
             </Text>
             
             {/* Input Fields */}
             <View className="mb-3">
               <TextInput
-                className="bg-zinc-900 text-white py-3 px-5 rounded-full text-base"
+                className="bg-gray-100 text-gray-900 py-3 px-5 rounded-full text-base"
                 placeholder="Your Email"
-                placeholderTextColor="#666"
+                placeholderTextColor="#999"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -124,9 +125,9 @@ export default function Signin() {
             
             <View className="mb-2">
               <TextInput
-                className="bg-zinc-900 text-white py-3 px-5 rounded-full text-base"
+                className="bg-gray-100 text-gray-900 py-3 px-5 rounded-full text-base"
                 placeholder="Your Password"
-                placeholderTextColor="#666"
+                placeholderTextColor="#999"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
@@ -135,34 +136,34 @@ export default function Signin() {
             
             {/* Forgot Password */}
             <TouchableOpacity className="mb-8">
-              <Text className="text-gray-400 text-center">
+              <Text className="text-gray-500 text-center">
                 Forgot password?
               </Text>
             </TouchableOpacity>
             
             {/* Sign In Button */}
             <TouchableOpacity 
-              className="bg-white py-3 rounded-full mb-6"
+              className="bg-gray-900 py-3 rounded-full mb-6"
               onPress={handleSignIn}
             >
-              <Text className="text-black text-center text-base font-semibold">
+              <Text className="text-white text-center text-base font-semibold">
                 Sign in
               </Text>
             </TouchableOpacity>
             
             {/* Divider */}
             <View className="flex-row items-center mb-6">
-              <View className="flex-1 h-[1px] bg-zinc-800" />
-              <Text className="text-gray-400 mx-4">or</Text>
-              <View className="flex-1 h-[1px] bg-zinc-800" />
+              <View className="flex-1 h-[1px] bg-gray-300" />
+              <Text className="text-gray-500 mx-4">or</Text>
+              <View className="flex-1 h-[1px] bg-gray-300" />
             </View>
             
             {/* Continue with Google */}
             <TouchableOpacity 
-              className="bg-zinc-900 py-3 rounded-full mb-6 flex-row justify-center items-center"
+              className="bg-gray-200 py-3 rounded-full mb-6 flex-row justify-center items-center"
             >
-              <Ionicons name="logo-google" size={18} color="#fff" style={{ marginRight: 8 }} />
-              <Text className="text-white text-center text-base">
+              <Ionicons name="logo-google" size={18} color="#333" style={{ marginRight: 8 }} />
+              <Text className="text-gray-900 text-center text-base">
                 Continue with Google
               </Text>
             </TouchableOpacity>
@@ -172,8 +173,8 @@ export default function Signin() {
               className="mb-8"
               onPress={() => router.push('/modal/signup')}
             >
-              <Text className="text-gray-400 text-center">
-                Don't have an account? <Text className="text-blue-400">Sign up</Text>
+              <Text className="text-gray-500 text-center">
+                Don't have an account? <Text className="text-gray-700">Sign up</Text>
               </Text>
             </TouchableOpacity>
           </Animated.View>

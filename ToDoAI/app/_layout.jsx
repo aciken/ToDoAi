@@ -18,6 +18,12 @@ export default function RootLayout() {
                     animationDuration: 800,
                 }}
             />
+            <Stack.Screen
+                name="main"
+                options={{
+                    headerShown: false,
+                }}
+            />
         </Stack>
     )
 }
