@@ -97,6 +97,7 @@ export default function AddTask() {
     };
 
     // Pass task back to main screen
+    router.back();
     router.navigate({
       pathname: "/main/Home",
       params: { newTask: JSON.stringify(newTask) }

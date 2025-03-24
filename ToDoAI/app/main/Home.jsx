@@ -9,11 +9,16 @@ import {
   Animated,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  Dimensions,
+  Pressable,
+  Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
+import { BlurView } from 'expo-blur';
 
 export default function Home() {
   const params = useLocalSearchParams();
@@ -25,10 +30,102 @@ export default function Home() {
   ]);
   const [filter, setFilter] = useState('all'); // 'all', 'active', 'completed'
   const [selectedDate, setSelectedDate] = useState(formatDate(new Date())); // Default to today
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [showTaskMenu, setShowTaskMenu] = useState(false);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
+
+  // Track tasks being swiped
+  const swipeableRefs = useRef({});
+  const itemBeingSwiped = useRef(null);
+
+  // Delete animation values
+  const getDeleteAnimatedValue = (id) => {
+    if (!swipeableRefs.current[id]) {
+      swipeableRefs.current[id] = {
+        translateX: new Animated.Value(0),
+        opacity: new Animated.Value(1),
+      };
+    }
+    return swipeableRefs.current[id];
+  };
+
+  // Reset any opened swipes
+  const resetOpenSwipes = (exceptId) => {
+    if (itemBeingSwiped.current && itemBeingSwiped.current !== exceptId) {
+      const animations = swipeableRefs.current[itemBeingSwiped.current];
+      if (animations) {
+        Animated.spring(animations.translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 0,
+        }).start();
+      }
+    }
+  };
+
+  // Handles task swipe for delete
+  const onSwipe = (id, event) => {
+    const { translationX, state, velocityX } = event.nativeEvent;
+    const animations = getDeleteAnimatedValue(id);
+    
+    // Track which item is being swiped
+    if (state === State.BEGAN) {
+      resetOpenSwipes(id);
+      itemBeingSwiped.current = id;
+    }
+
+    // Handle swipe movement
+    if (state === State.ACTIVE) {
+      let newTranslateX = translationX;
+      
+      // Restrict to left swipe only
+      if (newTranslateX > 0) newTranslateX = 0;
+      
+      // Add resistance when swiping beyond delete threshold
+      const deleteThreshold = -120;
+      if (newTranslateX < deleteThreshold) {
+        const extra = newTranslateX - deleteThreshold;
+        newTranslateX = deleteThreshold + extra / 3; // Resistance factor
+      }
+      
+      animations.translateX.setValue(newTranslateX);
+    }
+
+    // Handle swipe end
+    if (state === State.END) {
+      const deleteThreshold = -120;
+      const minSwipeDistance = 40;
+      const minSwipeVelocity = -0.5;
+      
+      if (translationX < deleteThreshold || (Math.abs(translationX) > minSwipeDistance && velocityX < minSwipeVelocity)) {
+        // Delete task with animation
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        
+        // Slide all the way left with spring and delete when finished
+        Animated.spring(animations.translateX, {
+          toValue: -Dimensions.get('window').width,
+          useNativeDriver: true,
+          bounciness: 0,
+          speed: 20,
+        }).start(() => {
+          // Delete the task immediately after slide animation
+          deleteTask(id);
+        });
+      } else {
+        // Reset position if not deleted
+        Animated.spring(animations.translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          bounciness: 5,
+        }).start();
+        
+        itemBeingSwiped.current = null;
+      }
+    }
+  };
 
   // Format date to YYYY-MM-DD format
   function formatDate(date) {
@@ -59,15 +156,29 @@ export default function Home() {
     if (params.newTask) {
       try {
         const newTaskItem = JSON.parse(params.newTask);
-        // Add task to the list - will be sorted by timestamp/date below
-        const updatedTasks = [...tasks, newTaskItem];
-        setTasks(updatedTasks);
-        
-        // Select the date of the new task
-        setSelectedDate(newTaskItem.date);
-        
-        // Clear the params to prevent duplicates on re-render
-        router.setParams({ newTask: null });
+        // Validate the task data before adding
+        if (newTaskItem && typeof newTaskItem === 'object') {
+          // Ensure all required fields are present
+          const task = {
+            id: newTaskItem.id || String(Date.now()),
+            text: newTaskItem.text || '',
+            completed: newTaskItem.completed || false,
+            date: newTaskItem.date || formatDate(new Date()),
+            time: newTaskItem.time || '00:00',
+            timestamp: newTaskItem.timestamp || new Date(newTaskItem.date || new Date()).getTime(),
+            isAIGenerated: newTaskItem.isAIGenerated || false
+          };
+          
+          // Add task to the list
+          const updatedTasks = [...tasks, task];
+          setTasks(updatedTasks);
+          
+          // Select the date of the new task
+          setSelectedDate(task.date);
+          
+          // Clear the params to prevent duplicates on re-render
+          router.setParams({ newTask: null });
+        }
       } catch (error) {
         console.error('Error parsing task data:', error);
       }
@@ -77,8 +188,21 @@ export default function Home() {
     if (params.newTasks) {
       try {
         const newTaskItems = JSON.parse(params.newTasks);
+        // Validate and process each task
+        const validTasks = newTaskItems
+          .filter(item => item && typeof item === 'object')
+          .map(item => ({
+            id: item.id || String(Date.now()),
+            text: item.text || '',
+            completed: item.completed || false,
+            date: item.date || formatDate(new Date()),
+            time: item.time || '00:00',
+            timestamp: item.timestamp || new Date(item.date || new Date()).getTime(),
+            isAIGenerated: item.isAIGenerated || false
+          }));
+        
         // Add tasks to the list
-        const updatedTasks = [...tasks, ...newTaskItems];
+        const updatedTasks = [...tasks, ...validTasks];
         setTasks(updatedTasks);
         
         // Select the target date if provided
@@ -225,6 +349,45 @@ export default function Home() {
     }
   };
 
+  // Add animation values for the popup
+  const popupScale = useRef(new Animated.Value(0.95)).current;
+  const popupTranslateY = useRef(new Animated.Value(20)).current;
+  const popupOpacity = useRef(new Animated.Value(0)).current;
+
+  // Add function to animate popup
+  const animatePopup = (show) => {
+    Animated.parallel([
+      Animated.spring(popupScale, {
+        toValue: show ? 1 : 0.95,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 200,
+      }),
+      Animated.spring(popupTranslateY, {
+        toValue: show ? 0 : 20,
+        useNativeDriver: true,
+        damping: 15,
+        stiffness: 200,
+      }),
+      Animated.timing(popupOpacity, {
+        toValue: show ? 1 : 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  // Update showTaskMenu to include animation
+  const handleShowTaskMenu = (show) => {
+    setShowTaskMenu(show);
+    animatePopup(show);
+  };
+
+  const openSettings = () => {
+    Haptics.selectionAsync();
+    router.push('/modal/settings');
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
@@ -234,37 +397,44 @@ export default function Home() {
         className="flex-1"
       >
         <Animated.View 
-          className="flex-1 px-4 pt-10"
+          className="flex-1 px-4 pt-4"
           style={{ 
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }]
           }}
         >
-          {/* Header - Slightly more compact */}
+          {/* Header - More compact */}
           <View className="flex-row justify-between items-center mb-4">
             <View>
-              <Text className="text-gray-900 text-2xl font-bold">My Tasks</Text>
-              <Text className="text-gray-500 text-sm">
-                {activeCount} active, {completedCount} completed
-              </Text>
+              <Text className="text-gray-900 text-2xl font-bold mb-1">My Tasks</Text>
+              <View className="flex-row items-center">
+                <View className="flex-row items-center mr-3">
+                  <View className="w-2 h-2 rounded-full bg-gray-400 mr-2" />
+                  <Text className="text-gray-500 text-sm">{activeCount} active</Text>
+                </View>
+                <View className="flex-row items-center">
+                  <View className="w-2 h-2 rounded-full bg-gray-300 mr-2" />
+                  <Text className="text-gray-500 text-sm">{completedCount} completed</Text>
+                </View>
+              </View>
             </View>
             <TouchableOpacity 
               className="bg-gray-100 h-9 w-9 rounded-full items-center justify-center"
-              onPress={() => Alert.alert('Profile', 'Profile settings would open here')}
+              onPress={openSettings}
             >
               <Ionicons name="person-outline" size={18} color="#333" />
             </TouchableOpacity>
           </View>
 
-          {/* Control row: Date + Add Task + AI Generator */}
+          {/* Control row: Date + Add Task + AI Generator - More compact */}
           <View className="flex-row mb-3 items-center">
-            {/* Date Selector */}
+            {/* Date Selector - More compact */}
             <TouchableOpacity 
-              className="flex-1 bg-gray-100 py-2 px-3 rounded-xl flex-row justify-between items-center mr-2"
+              className="flex-1 bg-gray-100 py-2 px-4 rounded-xl flex-row justify-between items-center mr-2"
               onPress={openCalendar}
             >
               <View className="flex-row items-center">
-                <Ionicons name="calendar" size={18} color="#666" style={{ marginRight: 6 }} />
+                <Ionicons name="calendar" size={18} color="#666" style={{ marginRight: 8 }} />
                 <Text className="text-gray-900 font-semibold">
                   {getDateLabel(selectedDate)}
                 </Text>
@@ -289,10 +459,10 @@ export default function Home() {
             </TouchableOpacity>
           </View>
 
-          {/* Filter Buttons - smaller and more compact */}
+          {/* Filter Buttons - More compact */}
           <View className="flex-row mb-4 justify-between">
             <TouchableOpacity
-              className={`py-1 px-3 rounded-full ${filter === 'all' ? 'bg-gray-200' : 'bg-transparent'}`}
+              className={`py-1 px-4 rounded-full ${filter === 'all' ? 'bg-gray-200' : 'bg-transparent'}`}
               onPress={() => setFilter('all')}
             >
               <Text className={`text-xs font-medium ${filter === 'all' ? 'text-gray-800' : 'text-gray-500'}`}>
@@ -300,7 +470,7 @@ export default function Home() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className={`py-1 px-3 rounded-full ${filter === 'active' ? 'bg-gray-200' : 'bg-transparent'}`}
+              className={`py-1 px-4 rounded-full ${filter === 'active' ? 'bg-gray-200' : 'bg-transparent'}`}
               onPress={() => setFilter('active')}
             >
               <Text className={`text-xs font-medium ${filter === 'active' ? 'text-gray-800' : 'text-gray-500'}`}>
@@ -308,7 +478,7 @@ export default function Home() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className={`py-1 px-3 rounded-full ${filter === 'completed' ? 'bg-gray-200' : 'bg-transparent'}`}
+              className={`py-1 px-4 rounded-full ${filter === 'completed' ? 'bg-gray-200' : 'bg-transparent'}`}
               onPress={() => setFilter('completed')}
             >
               <Text className={`text-xs font-medium ${filter === 'completed' ? 'text-gray-800' : 'text-gray-500'}`}>
@@ -317,7 +487,7 @@ export default function Home() {
             </TouchableOpacity>
             {completedCount > 0 && (
               <TouchableOpacity
-                className="py-1 px-3 rounded-full bg-transparent"
+                className="py-1 px-4 rounded-full bg-transparent"
                 onPress={clearCompleted}
               >
                 <Text className="text-xs font-medium text-red-500">Clear</Text>
@@ -325,88 +495,258 @@ export default function Home() {
             )}
           </View>
 
-          {/* Task List with date groupings */}
+          {/* Task List - Enhanced */}
           <ScrollView className="flex-1">
             {totalTasksForSelectedDate === 0 ? (
               <View className="flex-1 items-center justify-center py-12">
                 <Ionicons name="checkbox" size={48} color="#e5e5e5" />
-                <Text className="text-gray-400 text-base mt-2">
+                <Text className="text-gray-400 text-base mt-3">
                   No tasks for {getDateLabel(selectedDate)}
                 </Text>
                 <TouchableOpacity
-                  className="mt-3 py-2 px-4 rounded-lg bg-gray-100"
+                  className="mt-4 py-2.5 px-6 rounded-lg bg-gray-100"
                   onPress={openAITaskGenerator}
                 >
                   <View className="flex-row items-center">
-                    <Ionicons name="flash-outline" size={16} color="#666" style={{ marginRight: 6 }} />
-                    <Text className="text-gray-700">Generate Tasks with AI</Text>
+                    <Ionicons name="flash-outline" size={16} color="#666" style={{ marginRight: 8 }} />
+                    <Text className="text-gray-700 font-medium">Generate Tasks with AI</Text>
                   </View>
                 </TouchableOpacity>
               </View>
             ) : (
-              sortedTasks.map((task) => (
-                <View 
-                  key={task.id}
-                  className="flex-row items-center bg-white rounded-xl mb-2 py-2 px-3 border border-gray-100"
-                >
-                  <TouchableOpacity
-                    onPress={() => toggleTask(task.id)}
-                    className="mr-3"
+              sortedTasks.map((task) => {
+                const { translateX, opacity } = getDeleteAnimatedValue(task.id);
+                
+                return (
+                  <PanGestureHandler
+                    key={task.id}
+                    onHandlerStateChange={(e) => onSwipe(task.id, e)}
+                    onGestureEvent={(e) => onSwipe(task.id, e)}
+                    activeOffsetX={[-10, 10]} // Only activate on horizontal swipes
                   >
-                    <View className={`h-5 w-5 rounded-full border items-center justify-center ${
-                      task.completed ? 'border-gray-300 bg-gray-300' : 'border-gray-300 bg-transparent'
-                    }`}>
-                      {task.completed && (
-                        <Ionicons name="checkmark" size={12} color="#fff" />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                  
-                  <View className="flex-1">
-                    <Text className={`${task.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                      {task.text}
-                    </Text>
-                    <View className="flex-row items-center">
-                      <Text className="text-gray-400 text-xs mr-2">
-                        {task.time}
-                      </Text>
-                      {task.isAIGenerated && (
-                        <View className="flex-row items-center">
-                          <Ionicons name="flash" size={10} color="#000" style={{ marginRight: 2 }} />
-                          <Text className="text-gray-800 text-xs">AI</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                  
-                  <TouchableOpacity
-                    onPress={() => deleteTask(task.id)}
-                    className="p-2"
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#999" />
-                  </TouchableOpacity>
-                </View>
-              ))
+                    <Animated.View
+                      style={{
+                        opacity,
+                        transform: [{ translateX }],
+                        marginBottom: 10,
+                        borderRadius: 12,
+                        backgroundColor: 'transparent',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* Red delete background */}
+                      <View 
+                        style={{ 
+                          position: 'absolute',
+                          top: 0,
+                          bottom: 0,
+                          right: 0,
+                          left: 0,
+                          backgroundColor: '#ef4444',
+                          borderRadius: 12,
+                          flexDirection: 'row',
+                          justifyContent: 'flex-end',
+                          alignItems: 'center',
+                          paddingRight: 24,
+                        }}
+                      >
+                        <Ionicons name="trash" size={22} color="#fff" />
+                      </View>
+                      
+                      {/* Task content */}
+                      <Animated.View 
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: 'white',
+                          borderRadius: 12,
+                          padding: 14,
+                          borderWidth: 1,
+                          borderColor: '#f3f4f6',
+                          minHeight: 62,
+                          transform: [{ translateX }],
+                        }}
+                      >
+                        <Pressable
+                          onLongPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            setSelectedTask(task);
+                            handleShowTaskMenu(true);
+                          }}
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                        >
+                          <TouchableOpacity
+                            onPress={() => toggleTask(task.id)}
+                            style={{ marginRight: 14 }}
+                          >
+                            <View style={{ 
+                              height: 22, 
+                              width: 22, 
+                              borderRadius: 11, 
+                              borderWidth: 1.5, 
+                              borderColor: '#d1d5db', 
+                              alignItems: 'center', 
+                              justifyContent: 'center',
+                              backgroundColor: task.completed ? '#d1d5db' : 'transparent' 
+                            }}>
+                              {task.completed && (
+                                <Ionicons name="checkmark" size={12} color="#fff" />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                          
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ 
+                              color: task.completed ? '#9ca3af' : '#1f2937',
+                              textDecorationLine: task.completed ? 'line-through' : 'none',
+                              fontSize: 15,
+                              marginBottom: 2,
+                            }}>
+                              {task.text}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Text style={{ color: '#9ca3af', fontSize: 13, marginRight: 8 }}>
+                                {task.time}
+                              </Text>
+                              {task.isAIGenerated && (
+                                <View style={{ 
+                                  flexDirection: 'row', 
+                                  alignItems: 'center',
+                                  backgroundColor: '#f3f4f6',
+                                  paddingHorizontal: 6,
+                                  paddingVertical: 2,
+                                  borderRadius: 4,
+                                }}>
+                                  <Ionicons name="flash" size={10} color="#000" style={{ marginRight: 2 }} />
+                                  <Text style={{ color: '#4b5563', fontSize: 12 }}>AI</Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                        </Pressable>
+                      </Animated.View>
+                    </Animated.View>
+                  </PanGestureHandler>
+                );
+              })
             )}
           </ScrollView>
-          
-          {/* Floating Action Button for AI generator */}
-          <TouchableOpacity
-            className="absolute bottom-6 right-6 bg-black rounded-full w-14 h-14 items-center justify-center shadow-lg elevation-5"
-            style={{ 
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 4,
-            }}
-            onPress={openAITaskGenerator}
-          >
-            <View className="flex-row items-center justify-center">
-              <Ionicons name="flash" size={24} color="#fff" />
-            </View>
-          </TouchableOpacity>
         </Animated.View>
       </KeyboardAvoidingView>
+
+      {/* Task Options Menu */}
+      <Modal
+        visible={showTaskMenu}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => handleShowTaskMenu(false)}
+      >
+        <BlurView 
+          intensity={20} 
+          tint="dark"
+          style={{ 
+            flex: 1, 
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}
+        >
+          <Pressable 
+            style={{ 
+              flex: 1, 
+              width: '100%',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+            onPress={() => handleShowTaskMenu(false)}
+          >
+            <Animated.View style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              borderRadius: 16,
+              padding: 20,
+              width: '80%',
+              maxWidth: 300,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 4,
+              elevation: 5,
+              transform: [
+                { scale: popupScale },
+                { translateY: popupTranslateY }
+              ],
+              opacity: popupOpacity,
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: '600',
+                marginBottom: 16,
+                color: '#1f2937'
+              }}>
+                Task Options
+              </Text>
+              
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#f3f4f6'
+                }}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  handleShowTaskMenu(false);
+                  Alert.alert('Edit Task', 'Edit functionality coming soon!');
+                }}
+              >
+                <Ionicons name="pencil" size={20} color="#4b5563" style={{ marginRight: 12 }} />
+                <Text style={{ color: '#4b5563', fontSize: 16 }}>Edit Task</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#f3f4f6'
+                }}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  handleShowTaskMenu(false);
+                  toggleTask(selectedTask?.id);
+                }}
+              >
+                <Ionicons 
+                  name={selectedTask?.completed ? "checkmark-circle" : "checkmark-circle-outline"} 
+                  size={20} 
+                  color="#4b5563" 
+                  style={{ marginRight: 12 }} 
+                />
+                <Text style={{ color: '#4b5563', fontSize: 16 }}>
+                  {selectedTask?.completed ? 'Mark as Incomplete' : 'Mark as Complete'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 12,
+                }}
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  handleShowTaskMenu(false);
+                  deleteTask(selectedTask?.id);
+                }}
+              >
+                <Ionicons name="trash" size={20} color="#ef4444" style={{ marginRight: 12 }} />
+                <Text style={{ color: '#ef4444', fontSize: 16 }}>Delete Task</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </Pressable>
+        </BlurView>
+      </Modal>
     </SafeAreaView>
   );
 }

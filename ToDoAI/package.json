@@ -22,7 +22,8 @@
     "nativewind": "^2.0.11",
     "react": "18.3.1",
     "react-native": "0.76.7",
-    "react-native-calendars": "^1.1310.0"
+    "react-native-calendars": "^1.1310.0",
+    "react-native-gesture-handler": "^2.24.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
