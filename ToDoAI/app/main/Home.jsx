@@ -22,6 +22,7 @@ import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useGlobalContext } from '../context/GlobalProvider';
 
+
 export default function Home() {
   const params = useLocalSearchParams();
   const { user, setUser } = useGlobalContext();
