@@ -1,12 +1,14 @@
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GlobalProvider } from './context/GlobalProvider';
 
 export default function RootLayout() {
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <Stack>
-                <Stack.Screen
-                    name="index"
+            <GlobalProvider>
+                <Stack>
+                    <Stack.Screen
+                        name="index"
                     options={{
                         headerShown: false,
                     }}
@@ -27,6 +29,7 @@ export default function RootLayout() {
                     }}
                 />
             </Stack>
+            </GlobalProvider>
         </GestureHandlerRootView>
     )
 }

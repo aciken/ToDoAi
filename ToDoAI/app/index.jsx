@@ -1,9 +1,10 @@
 import { View, Text, TouchableOpacity, SafeAreaView, Animated, Image, Dimensions } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Get screen dimensions for responsive sizing
 const { width, height } = Dimensions.get('window');
@@ -24,33 +25,88 @@ const PersonalizedIcon = () => (
 export default function WelcomePage() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-  // State to track if we have a photo to display
   const [hasPhoto, setHasPhoto] = useState(false);
-  // You can replace this with your actual photo URL or require statement
+  const [showLoading, setShowLoading] = useState(true);
+  const loadingFadeAnim = useRef(new Animated.Value(1)).current;
   const photoSource = null;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
+    checkUser();
+    
+    // Show loading screen for 1.5 seconds
+    setTimeout(() => {
+      Animated.timing(loadingFadeAnim, {
         toValue: 0,
-        duration: 800,
+        duration: 500,
         useNativeDriver: true,
-      }),
-    ]).start();
+      }).start(() => {
+        setShowLoading(false);
+        // Start welcome screen animations
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
+    }, 1500);
   }, []);
+
+  const checkUser = async () => {
+    try {
+      const user = await AsyncStorage.getItem('user');
+      if (user) {
+        // User exists, route to home
+        router.replace('/main/Home');
+      }
+    } catch (error) {
+      console.error('Error checking user:', error);
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar style="dark" />
       
+      {/* Loading Screen */}
+      {showLoading && (
+        <Animated.View 
+          style={{ 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'white',
+            justifyContent: 'center',
+            alignItems: 'center',
+            opacity: loadingFadeAnim,
+            zIndex: 1
+          }}
+        >
+          <View className="items-center">
+            <View className="w-20 h-20 rounded-full bg-gray-900 items-center justify-center mb-4">
+              <Ionicons name="checkmark-done-circle" size={40} color="white" />
+            </View>
+            <Text className="text-xl font-semibold text-gray-900">ToDoAI</Text>
+          </View>
+        </Animated.View>
+      )}
+      
+      {/* Welcome Content */}
       <Animated.View 
         className="flex-1 px-6 justify-between"
-        style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
+        style={{ 
+          opacity: fadeAnim, 
+          transform: [{ translateY: slideAnim }],
+          display: showLoading ? 'none' : 'flex'
+        }}
       >
         {/* Photo Section - Will be empty if no photo */}
         <View className="items-center mt-12 mb-4">
@@ -109,7 +165,6 @@ export default function WelcomePage() {
     </SafeAreaView>
   );
 }
-
 const FeatureItem = ({ icon, title, description }) => (
   <View className="flex-row items-start space-x-4">
     <View className="bg-zinc-800 w-10 h-10 rounded-lg items-center justify-center">
@@ -121,3 +176,4 @@ const FeatureItem = ({ icon, title, description }) => (
     </View>
   </View>
 );
+

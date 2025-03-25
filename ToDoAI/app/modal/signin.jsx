@@ -15,6 +15,9 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 // Temporarily comment out AsyncStorage if not installed
 // import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -51,8 +54,24 @@ export default function Signin() {
 
   const handleSignIn = async () => {
     // For testing purposes, just show an alert
-    router.back();
-    router.push('/main/Home');
+    // router.back();
+    // router.push('/main/Home');
+    console.log(email, password);
+
+    axios.put('https://a0fb-109-245-199-118.ngrok-free.app/signin', {
+      email,
+      password
+    })
+    .then((response) => {
+      console.log(response.status);
+      if(response.status === 200){
+        AsyncStorage.setItem('user', JSON.stringify(response.data));
+        router.back();
+        router.push('/main/Home');
+      } else {
+        Alert.alert('Error', 'Invalid email or password');
+      }
+    })
     
     // Uncomment when ready to implement actual signin logic
     /*

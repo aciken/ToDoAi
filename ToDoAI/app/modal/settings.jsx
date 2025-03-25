@@ -10,11 +10,17 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Settings() {
   const handleBack = () => {
     Haptics.selectionAsync();
     router.back();
+  };
+
+  const handleSignOut = () => {
+    AsyncStorage.removeItem('user');
+    router.replace('/');
   };
 
   return (
@@ -76,7 +82,7 @@ export default function Settings() {
           <View className="mb-6">
             <Text className="text-sm font-medium text-gray-500 mb-3">ACCOUNT</Text>
             <View className="bg-white rounded-xl border border-gray-200">
-              <TouchableOpacity className="flex-row items-center justify-between p-4">
+              <TouchableOpacity onPress={handleSignOut} className="flex-row items-center justify-between p-4">
                 <View className="flex-row items-center">
                   <Ionicons name="log-out-outline" size={20} color="#ef4444" />
                   <Text className="ml-3 text-base text-red-500">Sign Out</Text>

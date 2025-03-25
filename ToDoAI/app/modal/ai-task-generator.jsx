@@ -17,8 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useGlobalContext } from '../context/GlobalProvider';
 
 export default function AITaskGenerator() {
+  const { user, setUser } = useGlobalContext();
   const [prompt, setPrompt] = useState('');
   const [generatedTasks, setGeneratedTasks] = useState([]);
   const [selectedTasks, setSelectedTasks] = useState({});
@@ -178,16 +182,30 @@ export default function AITaskGenerator() {
       }));
     
     if (tasksToAdd.length === 0) return;
-    
-    // Navigate back and pass tasks to home screen
-    router.back();
-    router.navigate({
-      pathname: "/main/Home",
-      params: { 
-        newTasks: JSON.stringify(tasksToAdd),
-        targetDate: formatDate(generationDate)
-      }
+
+    console.log(tasksToAdd);
+
+    axios.put('https://a0fb-109-245-199-118.ngrok-free.app/addaitasks', {
+      userID: user._id,
+      tasks: tasksToAdd
+    })
+    .then(response => {
+      if(response.status === 200){
+        setUser(response.data);
+        AsyncStorage.setItem('user', JSON.stringify(response.data));
+      router.back();
+      router.navigate({
+        pathname: "/main/Home",
+      });
+    }
+    })
+    .catch(error => {
+      console.error('Error adding AI tasks:', error);
     });
+    
+
+    // Navigate back and pass tasks to home screen
+
   };
   
   // Determine if we should show the overlay gradient

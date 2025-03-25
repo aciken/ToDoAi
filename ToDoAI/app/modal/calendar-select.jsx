@@ -1,13 +1,15 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StatusBar, SafeAreaView } from 'react-native';
+import { View, Text, TouchableOpacity, StatusBar, SafeAreaView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Calendar } from 'react-native-calendars';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CalendarSelect() {
   const params = useLocalSearchParams();
   const currentDate = params.currentDate || formatDate(new Date());
+  const previousScreen = params.from || 'unknown';
   const tasksParam = params.tasksData ? JSON.parse(params.tasksData) : [];
   
   // Format date to YYYY-MM-DD format
@@ -19,20 +21,60 @@ export default function CalendarSelect() {
   }
   
   // Handle date selection
-  const handleDateSelect = (date) => {
-    Haptics.selectionAsync();
-    router.back({
-      params: { selectedDate: date.dateString }
-    });
+  const handleDateSelect = async (date) => {
+    try {
+      Haptics.selectionAsync();
+      const selectedDate = date.dateString;
+      
+      // Store the selected date in AsyncStorage for persistence
+      await AsyncStorage.setItem('lastSelectedDate', selectedDate);
+      
+      // Go back to previous screen with the selected date
+      if (previousScreen === 'add-task') {
+        router.back({
+        });
+
+        router.replace({
+          pathname: '/modal/add-task',
+          params: { selectedDate: selectedDate }
+        });
+        
+      } else {
+        router.replace({
+          pathname: '/main/Home',
+          params: { selectedDate: selectedDate }
+        });
+      }
+    } catch (error) {
+      console.error("Error selecting date:", error);
+      Alert.alert("Error", "Failed to select date. Please try again.");
+    }
   };
   
   // Go to today
-  const goToToday = () => {
-    Haptics.selectionAsync();
-    const today = formatDate(new Date());
-    router.back({
-      params: { selectedDate: today }
-    });
+  const goToToday = async () => {
+    try {
+      Haptics.selectionAsync();
+      const today = formatDate(new Date());
+      
+      // Store the selected date in AsyncStorage for persistence
+      await AsyncStorage.setItem('lastSelectedDate', today);
+      
+      // Go back to previous screen with today's date
+      if (previousScreen === 'add-task') {
+        router.back({
+          params: { selectedDate: today }
+        });
+      } else {
+        router.replace({
+          pathname: '/main/home',
+          params: { selectedDate: today }
+        });
+      }
+    } catch (error) {
+      console.error("Error selecting today:", error);
+      Alert.alert("Error", "Failed to select today's date. Please try again.");
+    }
   };
   
   // Close the modal without selecting a date
@@ -46,7 +88,7 @@ export default function CalendarSelect() {
     
     // Mark tasks dates
     tasksParam.forEach(task => {
-      if (!markedDates[task.date]) {
+      if (task && task.date && !markedDates[task.date]) {
         markedDates[task.date] = { marked: true, dotColor: '#333' };
       }
     });
@@ -89,6 +131,9 @@ export default function CalendarSelect() {
         </View>
         
         <Calendar
+          current={currentDate}
+          minDate={'2023-01-01'}
+          maxDate={'2030-12-31'}
           markedDates={getMarkedDates()}
           onDayPress={handleDateSelect}
           theme={{

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-
+import axios from 'axios';
 // Temporarily comment out AsyncStorage if not installed
 // import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -69,31 +69,23 @@ export default function Signup() {
       return;
     }
     
-    // For testing purposes, just show an alert
-    Alert.alert("Sign Up", `Name: ${name}, Email: ${email}`);
+
+    axios.put('https://a0fb-109-245-199-118.ngrok-free.app/signup', {
+      name,
+      email,
+      password
+    })
+    .then((response) => {
+      console.log(response.status);
+      if(response.status === 200){
+        AsyncStorage.setItem('user', JSON.stringify(response.data));
+        router.back();
+        router.push('/main/Home');
+      } else {
+        Alert.alert('Error', 'User already exists');
+      }
+    })
     
-    // Uncomment when ready to implement actual signup logic
-    /*
-    try {
-      const response = await axios.put('https://your-api-url/signup', {
-        name,
-        email,
-        password
-      });
-      console.log(response.data);
-      await AsyncStorage.setItem('user', JSON.stringify(response.data));
-      setUser(response.data); 
-      router.back();
-      router.push('/Home');
-    } catch (error) {
-      console.error('Error signing up:', error);
-    }
-    */
-    
-    // For now, just navigate back
-    setTimeout(() => {
-      router.back();
-    }, 1000);
   };
   
   return (

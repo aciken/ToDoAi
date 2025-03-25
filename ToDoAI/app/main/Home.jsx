@@ -19,15 +19,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { BlurView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useGlobalContext } from '../context/GlobalProvider';
 
 export default function Home() {
   const params = useLocalSearchParams();
-  
-  const [tasks, setTasks] = useState([
-    { id: '1', text: 'Plan weekend trip', completed: false, date: '2023-03-22', time: '09:00', timestamp: new Date('2023-03-22T09:00:00').getTime() },
-    { id: '2', text: 'Complete project proposal', completed: true, date: '2023-03-22', time: '14:30', timestamp: new Date('2023-03-22T14:30:00').getTime() },
-    { id: '3', text: 'Schedule doctor appointment', completed: false, date: '2023-03-23', time: '16:00', timestamp: new Date('2023-03-23T16:00:00').getTime() },
-  ]);
+  const { user, setUser } = useGlobalContext();
   const [filter, setFilter] = useState('all'); // 'all', 'active', 'completed'
   const [selectedDate, setSelectedDate] = useState(formatDate(new Date())); // Default to today
   const [selectedTask, setSelectedTask] = useState(null);
@@ -40,6 +37,104 @@ export default function Home() {
   // Track tasks being swiped
   const swipeableRefs = useRef({});
   const itemBeingSwiped = useRef(null);
+
+  // Load user data when component mounts
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) {
+          setUser(JSON.parse(userData));
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+    loadUser();
+  }, []);
+
+  // Handle incoming tasks from the modal
+  useEffect(() => {
+    if (params.newTask) {
+      try {
+        const newTaskItem = JSON.parse(params.newTask);
+        if (newTaskItem && typeof newTaskItem === 'object') {
+          const task = {
+            id: newTaskItem.id || String(Date.now()),
+            text: newTaskItem.text || '',
+            completed: newTaskItem.completed || false,
+            date: newTaskItem.date || formatDate(new Date()),
+            time: newTaskItem.time || '00:00',
+            timestamp: newTaskItem.timestamp || new Date(newTaskItem.date || new Date()).getTime(),
+            isAIGenerated: newTaskItem.isAIGenerated || false
+          };
+          
+          // Update user's todos
+          if (user) {
+            const updatedUser = {
+              ...user,
+              todos: [...(user.todos || []), task]
+            };
+            AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+            setUser(updatedUser);
+          }
+          
+          setSelectedDate(task.date);
+          router.setParams({ newTask: null });
+        }
+      } catch (error) {
+        console.error('Error parsing task data:', error);
+      }
+    }
+    
+    // Handle bulk tasks from AI generator
+    if (params.newTasks) {
+      try {
+        const newTaskItems = JSON.parse(params.newTasks);
+        const validTasks = newTaskItems
+          .filter(item => item && typeof item === 'object')
+          .map(item => ({
+            id: item.id || String(Date.now()),
+            text: item.text || '',
+            completed: item.completed || false,
+            date: item.date || formatDate(new Date()),
+            time: item.time || '00:00',
+            timestamp: item.timestamp || new Date(item.date || new Date()).getTime(),
+            isAIGenerated: item.isAIGenerated || false
+          }));
+        
+        // Update user's todos
+        if (user) {
+          const updatedUser = {
+            ...user,
+            todos: [...(user.todos || []), ...validTasks]
+          };
+          AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+          setUser(updatedUser);
+        }
+        
+        if (params.targetDate) {
+          setSelectedDate(params.targetDate);
+        }
+        router.setParams({ newTasks: null, targetDate: null });
+      } catch (error) {
+        console.error('Error parsing bulk tasks data:', error);
+      }
+    }
+  }, [params.newTask, params.newTasks, user]);
+
+  // Effect to handle returned date from calendar modal
+  useEffect(() => {
+    if (params.selectedDate) {
+      try {
+        console.log('Received date in Home:', params.selectedDate);
+        setSelectedDate(params.selectedDate);
+        router.setParams({ selectedDate: null });
+      } catch (error) {
+        console.error('Error updating date in Home:', error);
+      }
+    }
+  }, [params.selectedDate]);
 
   // Delete animation values
   const getDeleteAnimatedValue = (id) => {
@@ -151,79 +246,6 @@ export default function Home() {
     ]).start();
   }, []);
   
-  // Handle incoming tasks from the modal
-  useEffect(() => {
-    if (params.newTask) {
-      try {
-        const newTaskItem = JSON.parse(params.newTask);
-        // Validate the task data before adding
-        if (newTaskItem && typeof newTaskItem === 'object') {
-          // Ensure all required fields are present
-          const task = {
-            id: newTaskItem.id || String(Date.now()),
-            text: newTaskItem.text || '',
-            completed: newTaskItem.completed || false,
-            date: newTaskItem.date || formatDate(new Date()),
-            time: newTaskItem.time || '00:00',
-            timestamp: newTaskItem.timestamp || new Date(newTaskItem.date || new Date()).getTime(),
-            isAIGenerated: newTaskItem.isAIGenerated || false
-          };
-          
-          // Add task to the list
-          const updatedTasks = [...tasks, task];
-          setTasks(updatedTasks);
-          
-          // Select the date of the new task
-          setSelectedDate(task.date);
-          
-          // Clear the params to prevent duplicates on re-render
-          router.setParams({ newTask: null });
-        }
-      } catch (error) {
-        console.error('Error parsing task data:', error);
-      }
-    }
-    
-    // Handle bulk tasks from AI generator
-    if (params.newTasks) {
-      try {
-        const newTaskItems = JSON.parse(params.newTasks);
-        // Validate and process each task
-        const validTasks = newTaskItems
-          .filter(item => item && typeof item === 'object')
-          .map(item => ({
-            id: item.id || String(Date.now()),
-            text: item.text || '',
-            completed: item.completed || false,
-            date: item.date || formatDate(new Date()),
-            time: item.time || '00:00',
-            timestamp: item.timestamp || new Date(item.date || new Date()).getTime(),
-            isAIGenerated: item.isAIGenerated || false
-          }));
-        
-        // Add tasks to the list
-        const updatedTasks = [...tasks, ...validTasks];
-        setTasks(updatedTasks);
-        
-        // Select the target date if provided
-        if (params.targetDate) {
-          setSelectedDate(params.targetDate);
-        }
-        
-        // Clear the params to prevent duplicates on re-render
-        router.setParams({ newTasks: null, targetDate: null });
-      } catch (error) {
-        console.error('Error parsing bulk tasks data:', error);
-      }
-    }
-    
-    // Handle date selection from calendar modal
-    if (params.selectedDate) {
-      setSelectedDate(params.selectedDate);
-      router.setParams({ selectedDate: null });
-    }
-  }, [params.newTask, params.newTasks, params.selectedDate, params.targetDate]);
-
   const openAddTaskPage = () => {
     router.push('/modal/add-task');
   };
@@ -233,36 +255,61 @@ export default function Home() {
     router.push('/modal/ai-task-generator');
   };
 
-  const toggleTask = (id) => {
-    // Find the task to determine if it's being completed or uncompleted
-    const task = tasks.find(task => task.id === id);
+  const toggleTask = async (id) => {
+    if (!user) return;
     
-    // Different haptic feedback based on completion
+    const task = user.todos.find(task => task.id === id);
+    
     if (task && !task.completed) {
-      // Success feedback when completing a task
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } else {
-      // Light impact feedback when uncompleting a task
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     
-    setTasks(
-      tasks.map(task => 
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
+    const updatedTodos = user.todos.map(task => 
+      task.id === id ? { ...task, completed: !task.completed } : task
     );
+    
+    const updatedUser = {
+      ...user,
+      todos: updatedTodos
+    };
+    
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
   };
 
-  const deleteTask = (id) => {
-    // Medium impact feedback when deleting a task
+  const deleteTask = async (id) => {
+    if (!user) return;
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setTasks(tasks.filter(task => task.id !== id));
+    
+    const updatedTodos = user.todos.filter(task => task.id !== id);
+    const updatedUser = {
+      ...user,
+      todos: updatedTodos
+    };
+    
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
   };
 
-  const clearCompleted = () => {
-    // Heavy impact feedback when clearing all completed tasks
+  const clearCompleted = async () => {
+    if (!user) return;
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setTasks(tasks.filter(task => !task.completed || task.date !== selectedDate));
+    
+    const updatedTodos = user.todos.filter(task => 
+      !task.completed || task.date !== selectedDate
+    );
+    
+    const updatedUser = {
+      ...user,
+      todos: updatedTodos
+    };
+    
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
   };
 
   // Go to today
@@ -275,33 +322,40 @@ export default function Home() {
   const openCalendar = () => {
     Haptics.selectionAsync();
     // Navigate to the calendar modal and pass the current selected date and tasks
-    const tasksData = JSON.stringify(tasks);
+    const tasksData = JSON.stringify(user?.todos || []);
     router.push({
       pathname: '/modal/calendar-select',
       params: {
         currentDate: selectedDate,
-        tasksData
+        tasksData,
+        from: 'home'
       }
     });
   };
 
-  // Filter tasks by date and active/completed status
-  const filteredTasks = tasks.filter(task => {
-    // First filter by selected date
+  // Filter tasks by date and active/completed status with null checks
+  const filteredTasks = (user?.todos || []).filter(task => {
+    if (!task || !task.date) return false;
     if (task.date !== selectedDate) return false;
     
-    // Then filter by completion status
     if (filter === 'active') return !task.completed;
     if (filter === 'completed') return task.completed;
     return true; // 'all'
   });
   
-  // Sort tasks by time
-  const sortedTasks = [...filteredTasks].sort((a, b) => a.timestamp - b.timestamp);
+  // Sort tasks by time with null checks
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    if (!a || !b) return 0;
+    return (a.timestamp || 0) - (b.timestamp || 0);
+  });
 
-  // Count tasks stats
-  const activeCount = tasks.filter(task => !task.completed && task.date === selectedDate).length;
-  const completedCount = tasks.filter(task => task.completed && task.date === selectedDate).length;
+  // Count tasks stats with null checks
+  const activeCount = (user?.todos || []).filter(task => 
+    task && !task.completed && task.date === selectedDate
+  ).length;
+  const completedCount = (user?.todos || []).filter(task => 
+    task && task.completed && task.date === selectedDate
+  ).length;
   const totalTasksForSelectedDate = activeCount + completedCount;
 
   // Format date for display (e.g., "March 22, 2023")
@@ -495,7 +549,7 @@ export default function Home() {
             )}
           </View>
 
-          {/* Task List - Enhanced */}
+          {/* Task List - Enhanced with null checks */}
           <ScrollView className="flex-1">
             {totalTasksForSelectedDate === 0 ? (
               <View className="flex-1 items-center justify-center py-12">
@@ -515,6 +569,8 @@ export default function Home() {
               </View>
             ) : (
               sortedTasks.map((task) => {
+                if (!task) return null;
+                
                 const { translateX, opacity } = getDeleteAnimatedValue(task.id);
                 
                 return (
@@ -522,7 +578,7 @@ export default function Home() {
                     key={task.id}
                     onHandlerStateChange={(e) => onSwipe(task.id, e)}
                     onGestureEvent={(e) => onSwipe(task.id, e)}
-                    activeOffsetX={[-10, 10]} // Only activate on horizontal swipes
+                    activeOffsetX={[-10, 10]}
                   >
                     <Animated.View
                       style={{
