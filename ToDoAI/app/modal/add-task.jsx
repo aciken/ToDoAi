@@ -144,7 +144,7 @@ export default function AddTask() {
     };
 
 
-  axios.put('https://a0fb-109-245-199-118.ngrok-free.app/addtask', {newTask, userID: user._id})
+  axios.put('https://809a-109-245-199-118.ngrok-free.app/addtask', {newTask, userID: user._id})
   .then((response) => {
     if (response.status === 200) {
       AsyncStorage.setItem('user', JSON.stringify(response.data));

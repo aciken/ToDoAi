@@ -26,6 +26,7 @@ export default function RootLayout() {
                     name="main"
                     options={{
                         headerShown: false,
+                        gestureEnabled: false,
                     }}
                 />
             </Stack>

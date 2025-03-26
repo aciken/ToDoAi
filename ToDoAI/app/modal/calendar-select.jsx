@@ -41,7 +41,7 @@ export default function CalendarSelect() {
         
       } else {
         router.replace({
-          pathname: '/main/Home',
+          pathname: '/main/TimelineView',
           params: { selectedDate: selectedDate }
         });
       }

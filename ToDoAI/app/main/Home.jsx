@@ -458,6 +458,25 @@ export default function Home() {
             transform: [{ translateY: slideAnim }]
           }}
         >
+          {/* Header */}
+          <View className="flex-row justify-between items-center mb-6">
+            <Text className="text-gray-900 text-xl font-bold">My Day</Text>
+            <View className="flex-row">
+              <TouchableOpacity 
+                onPress={() => router.push("/main/TimelineView")}
+                className="h-10 w-10 rounded-full items-center justify-center bg-gray-100 mr-2"
+              >
+                <Ionicons name="time" size={22} color="#333" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                onPress={() => router.push("/modal/add-task")}
+                className="h-10 w-10 rounded-full items-center justify-center bg-black"
+              >
+                <Ionicons name="add" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Header - More compact */}
           <View className="flex-row justify-between items-center mb-4">
             <View>
