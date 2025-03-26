@@ -161,15 +161,13 @@ ${detailLevel === 'detailed' ? 'Make tasks very specific with clear deliverables
   detailLevel === 'broad' ? 'Keep tasks broader and higher-level.' : 
   'Balance between specific and broader tasks.'}
 
-Format as a JSON array of objects, each with "text" and "time" properties.
-- "text" should be clear, actionable task descriptions
-- "time" should be in 24-hour format (HH:MM) between ${wakeUpTime} and ${sleepTime}
-- Arrange tasks in chronological order
-- Use realistic time durations for each task
-- Add context to make tasks meaningful
-- Include morning routine and evening wind-down activities
+Format as a JSON array of objects, each with these properties:
+- "text": clear, actionable task descriptions
+- "startTime": in 24-hour format (HH:MM) between ${wakeUpTime} and ${sleepTime}
+- "duration": task duration in minutes (30, 60, 90, 120, 180, etc.)
+- "completed": always set to false
 
-Example: [{"text": "Morning meditation and goal setting", "time": "07:00"}, {"text": "Check emails and prioritize day's work", "time": "09:30"}]`;
+Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", "duration": 30, "completed": false}, {"text": "Check emails and prioritize day's work", "startTime": "09:30", "duration": 60, "completed": false}]`;
 
       // Use the openai client that's already initialized with env API key
       const completion = await openai.chat.completions.create({
@@ -205,7 +203,9 @@ Example: [{"text": "Morning meditation and goal setting", "time": "07:00"}, {"te
       const tasks = parsedTasks.map((task, index) => ({
         id: `ai-${Date.now()}-${index}`,
         text: task.text,
-        time: task.time || "09:00"
+        startTime: task.startTime || "09:00",
+        duration: task.duration || 60,
+        completed: false
       }));
       
       setGeneratedTasks(tasks);
@@ -282,11 +282,10 @@ Example: [{"text": "Morning meditation and goal setting", "time": "07:00"}, {"te
       .map(task => ({
         id: Date.now() + Math.random().toString(),
         text: task.text,
+        startTime: task.startTime || "09:00",
+        duration: task.duration || 60,
         completed: false,
-        date: formatDate(generationDate),
-        time: task.time,
-        timestamp: new Date(`${formatDate(generationDate)}T${task.time}`).getTime(),
-        isAIGenerated: true // Mark as AI-generated
+        date: formatDate(generationDate)
       }));
     
     if (tasksToAdd.length === 0) {
@@ -307,7 +306,7 @@ Example: [{"text": "Morning meditation and goal setting", "time": "07:00"}, {"te
         AsyncStorage.setItem('user', JSON.stringify(response.data));
       router.back();
       router.navigate({
-        pathname: "/main/Home",
+        pathname: "/main/TimelineView",
       });
     }
     })
@@ -792,7 +791,9 @@ Example: [{"text": "Morning meditation and goal setting", "time": "07:00"}, {"te
                         </Text>
                         <Text className="text-gray-500 text-xs">
                           <Ionicons name="time-outline" size={12} color="#666" style={{ marginRight: 2 }} />
-                          {task.time}
+                          {task.startTime} 
+                          <Ionicons name="hourglass-outline" size={12} color="#666" style={{ marginLeft: 8, marginRight: 2 }} />
+                          {task.duration} min
                         </Text>
                       </View>
                     </TouchableOpacity>

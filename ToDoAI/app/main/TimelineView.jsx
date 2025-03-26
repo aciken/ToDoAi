@@ -17,8 +17,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useGlobalContext } from '../context/GlobalProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
-// Sample tasks for the timeline
+// Sample tasks as fallback
 const SAMPLE_TASKS = [
   { id: 1, text: 'Morning Routine', startTime: '07:00', duration: 60, icon: 'sunny', completed: false, date: '2025-03-25' },
   { id: 2, text: 'Team Meeting', startTime: '09:00', duration: 45, icon: 'people', completed: false, date: '2025-03-25' },
@@ -38,9 +41,10 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const HEADER_HEIGHT = 135; // Approximate header height with padding
 
 export default function TimelineView() {
+  const { user, setUser } = useGlobalContext();
   const params = useLocalSearchParams();
   const [selectedDate, setSelectedDate] = useState(params.selectedDate ? new Date(params.selectedDate) : new Date());
-  const [tasks, setTasks] = useState(SAMPLE_TASKS);
+  const [tasks, setTasks] = useState([]);
   const scrollViewRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const currentTimeRef = useRef(null);
@@ -55,6 +59,7 @@ export default function TimelineView() {
   const slideAnim = useRef(new Animated.Value(20)).current;
   const taskAnims = useRef(SAMPLE_TASKS.map(() => new Animated.Value(0))).current;
   const pageAnim = useRef(new Animated.Value(0)).current;
+  const emptyAnim = useRef(new Animated.Value(0)).current;
   
   // Header animation values
   const headerTranslateY = useRef(new Animated.Value(0)).current;
@@ -63,6 +68,33 @@ export default function TimelineView() {
   const lastScrollY = useRef(0);
   const scrollDirection = useRef('up');
   const isScrolling = useRef(false);
+  
+  // Load user data when component mounts
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) {
+          setUser(JSON.parse(userData));
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+    
+    if (!user) {
+      loadUser();
+    } else {
+      setTasks(user.tasks || []);
+    }
+  }, [user]);
+  
+  // Sync tasks when user changes
+  useEffect(() => {
+    if (user && user.tasks) {
+      setTasks(user.tasks);
+    }
+  }, [user]);
   
   // Handle scroll
   const handleScroll = Animated.event(
@@ -141,6 +173,10 @@ export default function TimelineView() {
     Haptics.selectionAsync();
     const newDate = new Date(selectedDate);
     
+    // Reset task animations first
+    taskAnims.forEach(anim => anim.setValue(0));
+    emptyAnim.setValue(0);
+    
     // Animate out current content
     Animated.timing(pageAnim, {
       toValue: direction === 'prev' ? 1 : -1,
@@ -157,6 +193,31 @@ export default function TimelineView() {
       
       // Reset animation and animate in new content
       pageAnim.setValue(0);
+      
+      const tasksForNewDate = getTasksForDate(newDate);
+      
+      if (tasksForNewDate.length === 0) {
+        // Animate empty state if no tasks
+        Animated.spring(emptyAnim, {
+          toValue: 1,
+          friction: 7,
+          tension: 40,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        // Start task animations with staggered delay
+        Animated.stagger(50, 
+          taskAnims.map(anim => 
+            Animated.spring(anim, {
+              toValue: 1,
+              friction: 7,
+              tension: 40,
+              useNativeDriver: true,
+            })
+          )
+        ).start();
+      }
+      
       Animated.timing(pageAnim, {
         toValue: 0,
         duration: 300,
@@ -198,14 +259,99 @@ export default function TimelineView() {
   // Calculate task position and height
   const getTaskStyle = (task, index) => {
     const startMinutes = timeToMinutes(task.startTime);
-    const top = ((startMinutes + 30) / 60) * HOUR_HEIGHT; // Added 30-minute offset forward
+    const top = ((startMinutes + 15) / 60) * HOUR_HEIGHT; // 15-minute offset
     const height = Math.max((task.duration / 60) * HOUR_HEIGHT, 60);
+    
+    // Ensure we don't try to access undefined animation values
+    const animation = taskAnims[index] || new Animated.Value(1);
+    
+    // Get all tasks for the current date
+    const tasksForCurrentDate = getTasksForDate(selectedDate);
+    
+    // Find overlapping tasks (tasks that overlap in time with this task)
+    const thisStartTime = startMinutes + 15;
+    const thisEndTime = thisStartTime + (task.duration / 60) * 60;
+    
+    // Find all tasks that overlap with this one
+    const overlappingTasks = [];
+    const overlapGroups = {};
+    
+    // Assign tasks to columns to prevent overlap
+    tasksForCurrentDate.forEach((t, i) => {
+      if (i === index) return; // Skip the current task
+      
+      const otherStartTime = timeToMinutes(t.startTime) + 15;
+      const otherEndTime = otherStartTime + (t.duration / 60) * 60;
+      
+      // Check if tasks overlap in time
+      if (thisStartTime < otherEndTime && thisEndTime > otherStartTime) {
+        overlappingTasks.push({ index: i, task: t });
+      }
+    });
+    
+    // Function to find which column to place the task in
+    const findColumn = (task) => {
+      const taskStartMinutes = timeToMinutes(task.startTime) + 15;
+      const taskEndMinutes = taskStartMinutes + (task.duration / 60) * 60;
+      
+      // Group tasks by overlap
+      let group = -1;
+      for (let g in overlapGroups) {
+        const groupTasks = overlapGroups[g];
+        let overlaps = false;
+        
+        for (let t of groupTasks) {
+          const tStartMinutes = timeToMinutes(t.startTime) + 15;
+          const tEndMinutes = tStartMinutes + (t.duration / 60) * 60;
+          
+          if (taskStartMinutes < tEndMinutes && taskEndMinutes > tStartMinutes) {
+            overlaps = true;
+            break;
+          }
+        }
+        
+        if (!overlaps) {
+          group = parseInt(g);
+          break;
+        }
+      }
+      
+      if (group === -1) {
+        group = Object.keys(overlapGroups).length;
+        overlapGroups[group] = [];
+      }
+      
+      overlapGroups[group].push(task);
+      return group;
+    };
+    
+    // Find column for current task
+    let column = 0;
+    
+    if (overlappingTasks.length > 0) {
+      // Sort overlapping tasks by start time
+      tasksForCurrentDate.sort((a, b) => {
+        return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+      }).forEach((t) => {
+        if (!overlapGroups[findColumn(t)]) {
+          overlapGroups[findColumn(t)] = [];
+        }
+      });
+      
+      // Find column for current task
+      column = findColumn(task);
+    }
+    
+    // Calculate width based on number of columns
+    const columns = Math.max(1, Object.keys(overlapGroups).length);
+    const columnWidth = (SCREEN_WIDTH - 96) / columns;
+    const columnGap = 4; // Gap between columns
     
     return {
       position: 'absolute',
       top,
-      left: 48,
-      width: SCREEN_WIDTH - 96,
+      left: 48 + (column * (columnWidth + columnGap)),
+      width: columnWidth - columnGap,
       height,
       backgroundColor: task.completed ? '#F3F4F6' : '#FFFFFF',
       borderRadius: 12,
@@ -218,16 +364,16 @@ export default function TimelineView() {
       borderWidth: 1,
       borderColor: task.completed ? '#E5E7EB' : '#F3F4F6',
       transform: [
-        { scale: taskAnims[index].interpolate({
+        { scale: animation.interpolate({
           inputRange: [0, 1],
           outputRange: [0.95, 1]
         })},
-        { translateY: taskAnims[index].interpolate({
+        { translateY: animation.interpolate({
           inputRange: [0, 1],
           outputRange: [20, 0]
         })}
       ],
-      opacity: taskAnims[index],
+      opacity: animation,
     };
   };
 
@@ -255,13 +401,42 @@ export default function TimelineView() {
     ]).start();
   }, []);
 
+  // Update task completion status
   const toggleTaskCompletion = (taskId) => {
     Haptics.selectionAsync();
-    setTasks(tasks.map(task => 
+    
+    // Update local state first for immediate feedback
+    const updatedTasks = tasks.map(task => 
       task.id === taskId 
         ? { ...task, completed: !task.completed }
         : task
-    ));
+    );
+    
+    setTasks(updatedTasks);
+    
+    // Find the updated task
+    const updatedTask = updatedTasks.find(task => task.id === taskId);
+    
+    // Update in backend
+    if (user && user._id) {
+      axios.put('https://809a-109-245-199-118.ngrok-free.app/updatetask', {
+        taskId: taskId,
+        completed: updatedTask.completed,
+        userID: user._id
+      })
+      .then(response => {
+        if (response.status === 200) {
+          // Update user in context and localStorage
+          AsyncStorage.setItem('user', JSON.stringify(response.data));
+          setUser(response.data);
+        }
+      })
+      .catch(error => {
+        console.error('Error updating task:', error);
+        // Revert change if there was an error
+        setTasks(tasks);
+      });
+    }
   };
 
   // Handle date change
@@ -313,7 +488,35 @@ export default function TimelineView() {
   
   const deleteTask = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    setTasks(tasks.filter(task => task.id !== selectedTask.id));
+    
+    if (!selectedTask) return;
+    
+    // Update local state first
+    const updatedTasks = tasks.filter(task => task.id !== selectedTask.id);
+    setTasks(updatedTasks);
+    
+    // Update in backend
+    if (user && user._id) {
+      axios.delete('https://809a-109-245-199-118.ngrok-free.app/deletetask', {
+        data: {
+          taskId: selectedTask.id,
+          userID: user._id
+        }
+      })
+      .then(response => {
+        if (response.status === 200) {
+          // Update user in context and localStorage
+          AsyncStorage.setItem('user', JSON.stringify(response.data));
+          setUser(response.data);
+        }
+      })
+      .catch(error => {
+        console.error('Error deleting task:', error);
+        // Revert change if there was an error
+        setTasks(tasks);
+      });
+    }
+    
     closeOverlay();
   };
 
@@ -564,7 +767,7 @@ export default function TimelineView() {
                         task.completed ? 'bg-gray-200' : 'bg-gray-100'
                       }`}>
                         <Ionicons 
-                          name={task.completed ? 'checkmark' : task.icon} 
+                          name={task.completed ? 'checkmark' : (task.icon || 'time-outline')} 
                           size={14} 
                           color={task.completed ? '#9CA3AF' : '#4B5563'} 
                         />
@@ -590,6 +793,46 @@ export default function TimelineView() {
               </View>
             </Animated.View>
           </ScrollView>
+          
+          {/* Empty state - fixed position outside of ScrollView */}
+          {getTasksForDate(selectedDate).length === 0 && (
+            <Animated.View
+              style={{
+                position: 'absolute',
+                top: '40%',
+                left: 0,
+                right: 0,
+                padding: 20,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: emptyAnim,
+                transform: [
+                  { scale: emptyAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1]
+                  })},
+                  { translateY: emptyAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0]
+                  })}
+                ]
+              }}
+            >
+              <View className="w-16 h-16 items-center justify-center rounded-full bg-gray-100 mb-4">
+                <Ionicons name="calendar-outline" size={28} color="#9CA3AF" />
+              </View>
+              <Text className="text-xl font-semibold text-gray-800 mb-2">No Tasks</Text>
+              <Text className="text-gray-500 text-center mb-6">
+                Nothing scheduled for this day.{'\n'}Tap + to add a new task.
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/modal/add-task")}
+                className="bg-black px-5 py-3 rounded-full"
+              >
+                <Text className="text-white font-medium">Add Task</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
         </Animated.View>
         
         {/* Task Options Overlay */}

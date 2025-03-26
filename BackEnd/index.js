@@ -9,6 +9,8 @@ const Signup = require('./Auth/Signup');
 const Signin = require('./Auth/signin');
 const AddTask = require('./Tasks/AddTask');
 const AddAITasks = require('./Tasks/AddAITasks');
+const DeleteTask = require('./Tasks/DeleteTask');
+const UpdateTask = require('./Tasks/UpdateTask');
 
 app.get('/', (req, res) => {
     res.send('Hello World!');
@@ -19,7 +21,9 @@ app.get('/', (req, res) => {
   app.put('/signin', Signin);
   app.put('/addtask', AddTask);
   app.put('/addaitasks', AddAITasks);
-  
+  app.delete('/deletetask', DeleteTask);
+  app.put('/updatetask', UpdateTask);
+
   app.listen(port, () => {
     console.log(`App listening at http://localhost:${port}`);
   });

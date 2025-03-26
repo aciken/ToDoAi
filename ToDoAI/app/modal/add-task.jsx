@@ -160,20 +160,16 @@ export default function AddTask() {
     // Format for display and sorting
     const dateString = formatDate(selectedDate);
     const timeString = formatTime(selectedTime);
-    const durationString = formatDuration();
     const durationMinutes = getTotalMinutes();
 
-    // Create task object with date, time and duration
+    // Create task object with structure matching the timeline view
     const newTask = {
       id: String(Date.now()),
       text: taskText.trim(),
-      completed: false,
-      date: dateString,
-      time: timeString,
+      startTime: timeString,
       duration: durationMinutes,
-      durationText: durationString,
-      timestamp: new Date(selectedDate).setHours(selectedTime.getHours(), selectedTime.getMinutes()),
-      isAIGenerated: false
+      completed: false,
+      date: dateString
     };
 
 

@@ -63,7 +63,7 @@ export default function WelcomePage() {
       const user = await AsyncStorage.getItem('user');
       if (user) {
         // User exists, route to home
-        router.replace('/main/Home');
+        router.replace('/main/TimelineView');
       }
     } catch (error) {
       console.error('Error checking user:', error);
