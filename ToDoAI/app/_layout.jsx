@@ -33,16 +33,14 @@ export default function RootLayout() {
                     name="main/TimelineView"
                     options={{
                         headerShown: false,
-                        gestureEnabled: true,
+                        gestureEnabled: false,
                         gestureDirection: 'horizontal',
                         animation: 'slide_from_right',
                         animationEnabled: true,
                         navigationBarHidden: true,
-                        gestureResponseDistance: 50,
+                        gestureResponseDistance: 0, // Prevents back gesture
                         headerBackVisible: false,
-                        headerLeft: () => null,
-                        customAnimationOnWeb: true,
-                        animationDuration: 300,
+                        headerLeft: () => null, // Removes back button
                     }}
                 />
             </Stack>

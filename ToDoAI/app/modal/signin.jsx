@@ -67,7 +67,7 @@ export default function Signin() {
       if(response.status === 200){
         AsyncStorage.setItem('user', JSON.stringify(response.data));
         router.back();
-        router.push('/main/Home');
+        router.push('/main/TimelineView');
       } else {
         Alert.alert('Error', 'Invalid email or password');
       }

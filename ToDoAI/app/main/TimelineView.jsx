@@ -9,7 +9,8 @@ import {
   Dimensions,
   Animated,
   Platform,
-  PanResponder
+  PanResponder,
+  Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -41,6 +42,13 @@ export default function TimelineView() {
   const [selectedDate, setSelectedDate] = useState(params.selectedDate ? new Date(params.selectedDate) : new Date());
   const [tasks, setTasks] = useState(SAMPLE_TASKS);
   const scrollViewRef = useRef(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const currentTimeRef = useRef(null);
+  
+  // Overlay state
+  const [overlayVisible, setOverlayVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const overlayAnim = useRef(new Animated.Value(0)).current;
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -264,6 +272,116 @@ export default function TimelineView() {
     }
   };
 
+  // Handle long press on task
+  const handleLongPress = (task) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedTask(task);
+    setOverlayVisible(true);
+    Animated.timing(overlayAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+  
+  // Close overlay
+  const closeOverlay = () => {
+    Animated.timing(overlayAnim, {
+      toValue: 0,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setOverlayVisible(false);
+      setSelectedTask(null);
+    });
+  };
+  
+  // Task actions
+  const completeTask = () => {
+    toggleTaskCompletion(selectedTask.id);
+    closeOverlay();
+  };
+  
+  const editTask = () => {
+    closeOverlay();
+    // Navigate to edit screen with the task
+    router.push({
+      pathname: "/modal/edit-task",
+      params: { taskId: selectedTask.id }
+    });
+  };
+  
+  const deleteTask = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    setTasks(tasks.filter(task => task.id !== selectedTask.id));
+    closeOverlay();
+  };
+
+  // Update current time every minute
+  useEffect(() => {
+    // Set initial time
+    setCurrentTime(new Date());
+    
+    // Scroll to current time when component mounts if today is selected
+    if (isToday(selectedDate)) {
+      const timeoutId = setTimeout(() => {
+        scrollToCurrentTime();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, []);
+  
+  // Set up timer to update current time every minute
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(intervalId);
+  }, []);
+  
+  // Scroll to current time when date changes to today
+  useEffect(() => {
+    if (isToday(selectedDate)) {
+      scrollToCurrentTime();
+    }
+  }, [selectedDate]);
+  
+  // Scroll to current time position
+  const scrollToCurrentTime = () => {
+    if (scrollViewRef.current) {
+      const hours = currentTime.getHours();
+      const minutes = currentTime.getMinutes();
+      const totalMinutes = hours * 60 + minutes;
+      
+      // Calculate scroll position (subtract some space to show upcoming events)
+      const scrollPosition = ((totalMinutes / 60) * HOUR_HEIGHT) - 150;
+      
+      scrollViewRef.current.scrollTo({ 
+        y: Math.max(0, scrollPosition), 
+        animated: true 
+      });
+    }
+  };
+  
+  // Check if selected date is today
+  const isToday = (date) => {
+    const today = new Date();
+    return (
+      today.getFullYear() === date.getFullYear() &&
+      today.getMonth() === date.getMonth() &&
+      today.getDate() === date.getDate()
+    );
+  };
+  
+  // Get current time position in timeline
+  const getCurrentTimePosition = () => {
+    const hours = currentTime.getHours();
+    const minutes = currentTime.getMinutes();
+    return (hours * HOUR_HEIGHT) + ((minutes / 60) * HOUR_HEIGHT);
+  };
+
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
@@ -300,7 +418,7 @@ export default function TimelineView() {
                 </View>
                 <View className="w-3" />
                 <TouchableOpacity 
-                  onPress={() => router.push("/modal/profile")}
+                  onPress={() => router.push("/modal/settings")}
                   className="h-10 w-10 rounded-full items-center justify-center bg-white/90 shadow-sm"
                 >
                   <Ionicons name="person" size={20} color="#4B5563" />
@@ -401,12 +519,45 @@ export default function TimelineView() {
                   </View>
                 ))}
 
+                {/* Current time indicator - only visible when today is selected */}
+                {isToday(selectedDate) && (
+                  <View 
+                    ref={currentTimeRef}
+                    style={{
+                      position: 'absolute',
+                      top: getCurrentTimePosition(),
+                      left: 0,
+                      right: 0,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      zIndex: 5,
+                    }}
+                  >
+                    <View className="flex-row items-center">
+                      <View className="w-4 h-4 rounded-full bg-red-500 ml-4" />
+                      <Text className="text-red-500 text-xs font-medium ml-2">
+                        {currentTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        flex: 1,
+                        height: 2,
+                        backgroundColor: '#EF4444', // Red color
+                        marginLeft: 8,
+                      }}
+                    />
+                  </View>
+                )}
+
                 {/* Tasks */}
                 {getTasksForDate(selectedDate).map((task, index) => (
                   <TouchableOpacity
                     key={task.id}
                     style={getTaskStyle(task, index)}
                     onPress={() => toggleTaskCompletion(task.id)}
+                    onLongPress={() => handleLongPress(task)}
+                    delayLongPress={300}
                   >
                     <View className="flex-row items-center">
                       <View className={`w-7 h-7 rounded-full items-center justify-center mr-2 ${
@@ -440,6 +591,112 @@ export default function TimelineView() {
             </Animated.View>
           </ScrollView>
         </Animated.View>
+        
+        {/* Task Options Overlay */}
+        <Modal
+          visible={overlayVisible}
+          transparent={true}
+          animationType="none"
+          onRequestClose={closeOverlay}
+        >
+          <Animated.View 
+            style={{
+              flex: 1, 
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              opacity: overlayAnim,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <BlurView intensity={30} tint="dark" style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              bottom: 0,
+              right: 0,
+            }} />
+            
+            <TouchableOpacity 
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                bottom: 0,
+                right: 0,
+              }}
+              onPress={closeOverlay}
+              activeOpacity={1}
+            />
+            
+            <Animated.View 
+              className="bg-white rounded-xl p-4 w-5/6 shadow-xl"
+              style={{
+                transform: [{
+                  scale: overlayAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.9, 1]
+                  })
+                }]
+              }}
+            >
+              {selectedTask && (
+                <>
+                  <View className="border-b border-gray-200 pb-3 mb-3">
+                    <View className="flex-row items-center mb-2">
+                      <View className={`w-8 h-8 rounded-full items-center justify-center mr-3 ${
+                        selectedTask.completed ? 'bg-gray-200' : 'bg-gray-100'
+                      }`}>
+                        <Ionicons 
+                          name={selectedTask.completed ? 'checkmark' : selectedTask.icon} 
+                          size={18} 
+                          color={selectedTask.completed ? '#9CA3AF' : '#4B5563'} 
+                        />
+                      </View>
+                      <Text className="text-lg font-semibold text-gray-900">
+                        {selectedTask.text}
+                      </Text>
+                    </View>
+                    <Text className="text-gray-500 ml-11">
+                      {selectedTask.startTime} • {formatDuration(selectedTask.duration)}
+                    </Text>
+                  </View>
+                  
+                  <TouchableOpacity 
+                    className="flex-row items-center py-3"
+                    onPress={completeTask}
+                  >
+                    <View className="w-10 items-center">
+                      <Ionicons name={selectedTask.completed ? "remove-circle" : "checkmark-circle"} size={22} color={selectedTask.completed ? "#EF4444" : "#10B981"} />
+                    </View>
+                    <Text className="text-base ml-2">
+                      {selectedTask.completed ? "Mark as Incomplete" : "Mark as Complete"}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    className="flex-row items-center py-3"
+                    onPress={editTask}
+                  >
+                    <View className="w-10 items-center">
+                      <Ionicons name="pencil" size={22} color="#4B5563" />
+                    </View>
+                    <Text className="text-base ml-2">Edit Task</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    className="flex-row items-center py-3"
+                    onPress={deleteTask}
+                  >
+                    <View className="w-10 items-center">
+                      <Ionicons name="trash" size={22} color="#EF4444" />
+                    </View>
+                    <Text className="text-base text-red-500 ml-2">Delete Task</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </Animated.View>
+          </Animated.View>
+        </Modal>
       </View>
     </View>
   );

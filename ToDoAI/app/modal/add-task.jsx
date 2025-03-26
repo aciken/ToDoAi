@@ -27,7 +27,9 @@ export default function AddTask() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedTime, setSelectedTime] = useState(new Date());
-
+  const [durationHours, setDurationHours] = useState(1);
+  const [durationMinutes, setDurationMinutes] = useState(0);
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
 
   // Load user data when component mounts
   useEffect(() => {
@@ -115,6 +117,28 @@ export default function AddTask() {
     }
   };
 
+  // Format duration to string (e.g. "1h 30m")
+  const formatDuration = () => {
+    if (durationHours === 0 && durationMinutes === 0) return "0m";
+    if (durationHours === 0) return `${durationMinutes}m`;
+    if (durationMinutes === 0) return `${durationHours}h`;
+    return `${durationHours}h ${durationMinutes}m`;
+  };
+
+  // Get total minutes for API
+  const getTotalMinutes = () => {
+    return (durationHours * 60) + durationMinutes;
+  };
+
+  // Handle duration changes
+  const handleHourChange = (value) => {
+    setDurationHours(value);
+  };
+
+  const handleMinuteChange = (value) => {
+    setDurationMinutes(value);
+  };
+
   const handleAddTask = async () => {
     if (!user) {
       Alert.alert('Error', 'User data not loaded. Please try again.');
@@ -126,19 +150,28 @@ export default function AddTask() {
       return;
     }
 
+    if (durationHours === 0 && durationMinutes === 0) {
+      Alert.alert('Error', 'Please set a task duration');
+      return;
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     // Format for display and sorting
     const dateString = formatDate(selectedDate);
     const timeString = formatTime(selectedTime);
+    const durationString = formatDuration();
+    const durationMinutes = getTotalMinutes();
 
-    // Create task object with date and time
+    // Create task object with date, time and duration
     const newTask = {
       id: String(Date.now()),
       text: taskText.trim(),
       completed: false,
       date: dateString,
       time: timeString,
+      duration: durationMinutes,
+      durationText: durationString,
       timestamp: new Date(selectedDate).setHours(selectedTime.getHours(), selectedTime.getMinutes()),
       isAIGenerated: false
     };
@@ -200,23 +233,25 @@ export default function AddTask() {
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
       
+      {/* Fixed Header */}
+      <View className="px-6 pt-8 pb-4 bg-white z-10 border-b border-gray-100">
+        <View className="flex-row justify-between items-center">
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="close" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text className="text-gray-900 text-xl font-bold">New Task</Text>
+          <TouchableOpacity onPress={handleAddTask}>
+            <Text className="text-gray-900 text-base font-semibold">Add</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-          <View className="flex-1 px-6 pt-12">
-            {/* Header */}
-            <View className="flex-row justify-between items-center mb-8">
-              <TouchableOpacity onPress={() => router.back()}>
-                <Ionicons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-              <Text className="text-gray-900 text-xl font-bold">New Task</Text>
-              <TouchableOpacity onPress={handleAddTask}>
-                <Text className="text-gray-900 text-base font-semibold">Add</Text>
-              </TouchableOpacity>
-            </View>
-            
+          <View className="flex-1 px-6 pt-4">
             {/* Task Input */}
             <View className="mb-6">
               <Text className="text-gray-700 mb-2 font-medium">Task Name</Text>
@@ -264,6 +299,112 @@ export default function AddTask() {
                   onChange={onTimeChange}
                   style={{ height: 120 }}
                 />
+              </View>
+            </View>
+            
+            {/* Duration Picker */}
+            <View className="mb-6">
+              <Text className="text-gray-700 mb-2 font-medium">Task Duration</Text>
+              <View className="bg-gray-100 rounded-xl p-4">
+                <View className="flex-row items-center justify-center mb-5">
+                  <Ionicons name="hourglass-outline" size={20} color="#666" style={{ marginRight: 8 }} />
+                  <Text className="text-gray-900 font-semibold text-lg">{formatDuration()}</Text>
+                </View>
+                
+                {/* Quick duration buttons */}
+                <View className="flex-row justify-between mb-5">
+                  <TouchableOpacity 
+                    onPress={() => { setDurationHours(0); setDurationMinutes(30); }}
+                    className={`py-2 px-4 rounded-full ${durationHours === 0 && durationMinutes === 30 ? 'bg-black' : 'bg-gray-200'}`}
+                  >
+                    <Text className={`${durationHours === 0 && durationMinutes === 30 ? 'text-white' : 'text-gray-700'} font-medium`}>30m</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    onPress={() => { setDurationHours(1); setDurationMinutes(0); }}
+                    className={`py-2 px-4 rounded-full ${durationHours === 1 && durationMinutes === 0 ? 'bg-black' : 'bg-gray-200'}`}
+                  >
+                    <Text className={`${durationHours === 1 && durationMinutes === 0 ? 'text-white' : 'text-gray-700'} font-medium`}>1h</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    onPress={() => { setDurationHours(1); setDurationMinutes(30); }}
+                    className={`py-2 px-4 rounded-full ${durationHours === 1 && durationMinutes === 30 ? 'bg-black' : 'bg-gray-200'}`}
+                  >
+                    <Text className={`${durationHours === 1 && durationMinutes === 30 ? 'text-white' : 'text-gray-700'} font-medium`}>1h 30m</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    onPress={() => { setDurationHours(2); setDurationMinutes(0); }}
+                    className={`py-2 px-4 rounded-full ${durationHours === 2 && durationMinutes === 0 ? 'bg-black' : 'bg-gray-200'}`}
+                  >
+                    <Text className={`${durationHours === 2 && durationMinutes === 0 ? 'text-white' : 'text-gray-700'} font-medium`}>2h</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View className="flex-row justify-between items-center">
+                  {/* Hours selector */}
+                  <View className="flex-1 mr-6 bg-gray-200 py-3 px-3 rounded-xl">
+                    <Text className="text-gray-700 text-center mb-2 font-medium">Hours</Text>
+                    <View className="flex-row justify-center items-center">
+                      <TouchableOpacity 
+                        onPress={() => durationHours > 0 && setDurationHours(durationHours - 1)}
+                        className="bg-white w-9 h-9 rounded-full items-center justify-center shadow-sm"
+                      >
+                        <Ionicons name="remove" size={20} color="#333" />
+                      </TouchableOpacity>
+                      
+                      <Text className="text-gray-900 text-xl font-semibold mx-4 w-8 text-center">
+                        {durationHours}
+                      </Text>
+                      
+                      <TouchableOpacity 
+                        onPress={() => setDurationHours(durationHours + 1)}
+                        className="bg-white w-9 h-9 rounded-full items-center justify-center shadow-sm"
+                      >
+                        <Ionicons name="add" size={20} color="#333" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  
+                  {/* Minutes selector */}
+                  <View className="flex-1 bg-gray-200 py-3 px-3 rounded-xl">
+                    <Text className="text-gray-700 text-center mb-2 font-medium">Minutes</Text>
+                    <View className="flex-row justify-center items-center">
+                      <TouchableOpacity 
+                        onPress={() => {
+                          if (durationMinutes === 0) {
+                            setDurationMinutes(45);
+                          } else if (durationMinutes === 15) {
+                            setDurationMinutes(0);
+                          } else {
+                            setDurationMinutes(durationMinutes - 15);
+                          }
+                        }}
+                        className="bg-white w-9 h-9 rounded-full items-center justify-center shadow-sm"
+                      >
+                        <Ionicons name="remove" size={20} color="#333" />
+                      </TouchableOpacity>
+                      
+                      <Text className="text-gray-900 text-xl font-semibold mx-4 w-8 text-center">
+                        {durationMinutes}
+                      </Text>
+                      
+                      <TouchableOpacity 
+                        onPress={() => {
+                          if (durationMinutes === 45) {
+                            setDurationMinutes(0);
+                          } else {
+                            setDurationMinutes(durationMinutes + 15);
+                          }
+                        }}
+                        className="bg-white w-9 h-9 rounded-full items-center justify-center shadow-sm"
+                      >
+                        <Ionicons name="add" size={20} color="#333" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
               </View>
             </View>
           </View>
