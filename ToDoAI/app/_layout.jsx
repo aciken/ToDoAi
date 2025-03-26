@@ -29,7 +29,24 @@ export default function RootLayout() {
                         gestureEnabled: false,
                     }}
                 />
+                          <Stack.Screen
+                    name="main/TimelineView"
+                    options={{
+                        headerShown: false,
+                        gestureEnabled: true,
+                        gestureDirection: 'horizontal',
+                        animation: 'slide_from_right',
+                        animationEnabled: true,
+                        navigationBarHidden: true,
+                        gestureResponseDistance: 50,
+                        headerBackVisible: false,
+                        headerLeft: () => null,
+                        customAnimationOnWeb: true,
+                        animationDuration: 300,
+                    }}
+                />
             </Stack>
+
             </GlobalProvider>
         </GestureHandlerRootView>
     )
