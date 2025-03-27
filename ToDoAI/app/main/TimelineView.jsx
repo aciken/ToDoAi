@@ -419,7 +419,7 @@ export default function TimelineView() {
     
     // Update in backend
     if (user && user._id) {
-      axios.put('https://809a-109-245-199-118.ngrok-free.app/updatetask', {
+      axios.put('https://4c00-109-245-199-118.ngrok-free.app/updatetask', {
         taskId: taskId,
         completed: updatedTask.completed,
         userID: user._id
@@ -497,7 +497,7 @@ export default function TimelineView() {
     
     // Update in backend
     if (user && user._id) {
-      axios.delete('https://809a-109-245-199-118.ngrok-free.app/deletetask', {
+      axios.delete('https://4c00-109-245-199-118.ngrok-free.app/deletetask', {
         data: {
           taskId: selectedTask.id,
           userID: user._id

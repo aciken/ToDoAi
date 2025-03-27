@@ -9,7 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,72 +20,53 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useGlobalContext } from '../context/GlobalProvider';
 
-export default function AddTask() {
+export default function EditTask() {
   const { user, setUser } = useGlobalContext();
   const params = useLocalSearchParams();
+  const taskId = params.taskId;
+  
+  const [task, setTask] = useState(null);
   const [taskText, setTaskText] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedTime, setSelectedTime] = useState(new Date());
   const [durationHours, setDurationHours] = useState(1);
   const [durationMinutes, setDurationMinutes] = useState(0);
-  const [showDurationPicker, setShowDurationPicker] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Load user data when component mounts
+  // Load task data when component mounts
   useEffect(() => {
-    const loadUser = async () => {
+    const loadTask = async () => {
       try {
         const userData = await AsyncStorage.getItem('user');
         if (userData) {
-          setUser(JSON.parse(userData));
+          const user = JSON.parse(userData);
+          const foundTask = user.tasks.find(t => t.id === taskId);
+          if (foundTask) {
+            setTask(foundTask);
+            setTaskText(foundTask.text);
+            
+            // Set time
+            const [timeHours, timeMinutes] = foundTask.startTime.split(':').map(Number);
+            const timeDate = new Date();
+            timeDate.setHours(timeHours, timeMinutes, 0, 0);
+            setSelectedTime(timeDate);
+            
+            // Set duration
+            const durationHours = Math.floor(foundTask.duration / 60);
+            const durationMinutes = foundTask.duration % 60;
+            setDurationHours(durationHours);
+            setDurationMinutes(durationMinutes);
+          }
         }
       } catch (error) {
-        console.error('Error loading user data:', error);
+        console.error('Error loading task:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
-    loadUser();
-  }, []);
-
-  // Effect to handle returned date from calendar modal
-  useEffect(() => {
-    if (params.selectedDate) {
-      try {
-        console.log('Received date in AddTask:', params.selectedDate);
-        
-        // Create a new Date object from the selected date string
-        const dateArray = params.selectedDate.split('-');
-        const year = parseInt(dateArray[0]);
-        const month = parseInt(dateArray[1]) - 1; // Months are 0-indexed
-        const day = parseInt(dateArray[2]);
-        
-        // Create new date with the same time as the current selectedTime
-        const newDate = new Date();
-        newDate.setFullYear(year, month, day);
-        newDate.setHours(selectedTime.getHours());
-        newDate.setMinutes(selectedTime.getMinutes());
-        
-        console.log('Setting date to:', newDate);
-        setSelectedDate(newDate);
-      } catch (error) {
-        console.error('Error updating date:', error);
-      }
-    }
-  }, [params]);
-  
-  // Format date to YYYY-MM-DD format
-  const formatDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  // Format date for display (e.g., "March 22, 2023")
-  const formatDateForDisplay = (date) => {
-    const options = { year: 'numeric', month: 'long', day: 'numeric' };
-    return date.toLocaleDateString(undefined, options);
-  };
+    
+    loadTask();
+  }, [taskId]);
   
   // Format time to HH:mm format
   const formatTime = (date) => {
@@ -93,27 +75,10 @@ export default function AddTask() {
     return `${hours}:${minutes}`;
   };
 
-  // Open calendar modal for date selection
-  const openCalendar = () => {
-    Haptics.selectionAsync();
-    router.push({
-      pathname: '/modal/calendar-select',
-      params: {
-        currentDate: formatDate(selectedDate),
-        from: 'add-task'
-      }
-    });
-  };
-
   const onTimeChange = (event, selectedTime) => {
     if (selectedTime) {
-      // Create new date combining existing date with new time
-      const newDateTime = new Date(selectedDate);
-      newDateTime.setHours(selectedTime.getHours());
-      newDateTime.setMinutes(selectedTime.getMinutes());
-      
+      Haptics.selectionAsync();
       setSelectedTime(selectedTime);
-      setSelectedDate(newDateTime); // Update both states
     }
   };
 
@@ -125,106 +90,63 @@ export default function AddTask() {
     return `${durationHours}h ${durationMinutes}m`;
   };
 
-  // Get total minutes for API
-  const getTotalMinutes = () => {
-    return (durationHours * 60) + durationMinutes;
-  };
-
-  // Handle duration changes
-  const handleHourChange = (value) => {
-    setDurationHours(value);
-  };
-
-  const handleMinuteChange = (value) => {
-    setDurationMinutes(value);
-  };
-
-  const handleAddTask = async () => {
-    if (!user) {
-      Alert.alert('Error', 'User data not loaded. Please try again.');
+  // Handle save
+  const handleSave = async () => {
+    if (!taskText.trim()) {
+      Alert.alert('Error', 'Please enter a task description.');
       return;
     }
-
-    if (taskText.trim() === '') {
-      Alert.alert('Error', 'Please enter a task description');
-      return;
-    }
-
+    
     if (durationHours === 0 && durationMinutes === 0) {
       Alert.alert('Error', 'Please set a task duration');
       return;
     }
-
+    
+    setIsSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    // Format for display and sorting
-    const dateString = formatDate(selectedDate);
-    const timeString = formatTime(selectedTime);
-    const durationMinutes = getTotalMinutes();
-
-    // Create task object with structure matching the timeline view
-    const newTask = {
-      id: String(Date.now()),
-      text: taskText.trim(),
-      startTime: timeString,
-      duration: durationMinutes,
-      completed: false,
-      date: dateString
-    };
-
-
-  axios.put('https://4c00-109-245-199-118.ngrok-free.app/addtask', {newTask, userID: user._id})
-  .then((response) => {
-    if (response.status === 200) {
-      AsyncStorage.setItem('user', JSON.stringify(response.data));
-      setUser(response.data);
-      router.back({
-        params: {
-          newTask: JSON.stringify(newTask)
-        }
+    
+    try {
+      const updatedTask = {
+        ...task,
+        text: taskText.trim(),
+        startTime: formatTime(selectedTime),
+        duration: (durationHours * 60) + durationMinutes
+      };
+      
+      const response = await axios.put('https://4c00-109-245-199-118.ngrok-free.app/updatetaskfully', {
+        taskId: task.id,
+        task: updatedTask,
+        userID: user._id
       });
+      
+      if (response.status === 200) {
+        AsyncStorage.setItem('user', JSON.stringify(response.data));
+        setUser(response.data);
+        router.back();
+      }
+    } catch (error) {
+      if (error.response?.status === 400) {
+        Alert.alert(
+          'Cannot Update Task',
+          error.response.data.message || 'The task overlaps with another task on the same day',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to update task. Please try again.');
+      }
+    } finally {
+      setIsSaving(false);
     }
-  })
-  .catch((error) => {
-    console.error('Error adding task:', error);
-    Alert.alert('Error', 'Failed to add task. Please try again.');
-  }); 
+  };
+  
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-gray-50">
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
   }
-
-  // Check if a date is today
-  const isToday = (date) => {
-    const today = new Date();
-    
-    return (
-      today.getFullYear() === date.getFullYear() &&
-      today.getMonth() === date.getMonth() &&
-      today.getDate() === date.getDate()
-    );
-  };
-
-  // Check if a date is tomorrow
-  const isTomorrow = (date) => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    return (
-      tomorrow.getFullYear() === date.getFullYear() &&
-      tomorrow.getMonth() === date.getMonth() &&
-      tomorrow.getDate() === date.getDate()
-    );
-  };
-
-  // Get a friendly date description
-  const getDateLabel = (date) => {
-    if (isToday(date)) {
-      return 'Today';
-    } else if (isTomorrow(date)) {
-      return 'Tomorrow';
-    } else {
-      return formatDateForDisplay(date);
-    }
-  };
-
+  
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" />
@@ -235,9 +157,13 @@ export default function AddTask() {
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="close" size={24} color="#333" />
           </TouchableOpacity>
-          <Text className="text-gray-900 text-xl font-bold">New Task</Text>
-          <TouchableOpacity onPress={handleAddTask}>
-            <Text className="text-gray-900 text-base font-semibold">Add</Text>
+          <Text className="text-gray-900 text-xl font-bold">Edit Task</Text>
+          <TouchableOpacity onPress={handleSave} disabled={isSaving}>
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#333" />
+            ) : (
+              <Text className="text-gray-900 text-base font-semibold">Save</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -264,22 +190,7 @@ export default function AddTask() {
               />
             </View>
             
-            {/* Date Picker - Using calendar modal */}
-            <View className="mb-6">
-              <Text className="text-gray-700 mb-2 font-medium">Task Date</Text>
-              <TouchableOpacity 
-                className="bg-gray-100 rounded-xl py-3 px-5 flex-row justify-between items-center"
-                onPress={openCalendar}
-              >
-                <View className="flex-row items-center">
-                  <Ionicons name="calendar-outline" size={18} color="#666" style={{ marginRight: 8 }} />
-                  <Text className="text-gray-900 font-medium">{getDateLabel(selectedDate)}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#666" />
-              </TouchableOpacity>
-            </View>
-            
-            {/* Time Picker - Always visible */}
+            {/* Time Picker */}
             <View className="mb-6">
               <Text className="text-gray-700 mb-2 font-medium">Task Time</Text>
               <View className="bg-gray-100 rounded-xl p-4">

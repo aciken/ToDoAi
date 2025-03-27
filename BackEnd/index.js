@@ -11,6 +11,7 @@ const AddTask = require('./Tasks/AddTask');
 const AddAITasks = require('./Tasks/AddAITasks');
 const DeleteTask = require('./Tasks/DeleteTask');
 const UpdateTask = require('./Tasks/UpdateTask');
+const UpdateTaskFully = require('./Tasks/UpdateTaskFully');
 
 app.get('/', (req, res) => {
     res.send('Hello World!');
@@ -23,7 +24,8 @@ app.get('/', (req, res) => {
   app.put('/addaitasks', AddAITasks);
   app.delete('/deletetask', DeleteTask);
   app.put('/updatetask', UpdateTask);
-
+  app.put('/updatetaskfully', UpdateTaskFully);
+  
   app.listen(port, () => {
     console.log(`App listening at http://localhost:${port}`);
   });

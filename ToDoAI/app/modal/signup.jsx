@@ -70,7 +70,7 @@ export default function Signup() {
     }
     
 
-    axios.put('https://809a-109-245-199-118.ngrok-free.app/signup', {
+    axios.put('https://4c00-109-245-199-118.ngrok-free.app/signup', {
       name,
       email,
       password

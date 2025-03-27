@@ -129,11 +129,11 @@ export default function WelcomePage() {
         {/* Bottom Section - Welcome Text and Buttons */}
         <View className="w-full items-center mb-10">
           <Text className="text-gray-900 text-4xl font-bold mb-3 text-center">
-            App Name
+            Simple Day
           </Text>
           
           <Text className="text-gray-700 text-center text-lg mb-10">
-            Your app's description goes here. Highlight main features and benefits.
+            Organize your day with AI-powered task management. Simple, intuitive, and efficient.
           </Text>
           
           <Link href="/modal/signup" asChild>

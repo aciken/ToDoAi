@@ -24,6 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useGlobalContext } from '../context/GlobalProvider';
 import { OpenAI } from "openai";
 import DateTimePicker from '@react-native-community/datetimepicker';
+import LinearGradient from 'react-native-linear-gradient';
 
 // In React Native with Expo, process.env variables aren't directly accessible
 // We need to use Expo's configuration for environment variables
@@ -56,15 +57,36 @@ const TASK_DETAIL_LEVELS = [
   { id: 'detailed', name: 'Detailed', description: 'Many specific tasks' },
 ];
 
+// Add new constants for additional options
+const ENERGY_LEVELS = [
+  { id: 'morning', name: 'Morning', icon: 'sunny', description: 'Most productive in the morning' },
+  { id: 'afternoon', name: 'Afternoon', icon: 'partly-sunny', description: 'Peak energy in the afternoon' },
+  { id: 'evening', name: 'Evening', icon: 'moon', description: 'Most focused in the evening' },
+  { id: 'balanced', name: 'Balanced', icon: 'time', description: 'Consistent energy throughout' }
+];
+
+const FOCUS_PREFERENCES = [
+  { id: 'deep', name: 'Deep Focus', icon: 'brain', description: 'Long, uninterrupted work sessions' },
+  { id: 'pomodoro', name: 'Pomodoro', icon: 'timer', description: '25/5 minute work/break cycles' },
+  { id: 'flexible', name: 'Flexible', icon: 'sync', description: 'Adaptable to energy levels' }
+];
+
+const MEAL_PREFERENCES = [
+  { id: 'regular', name: 'Regular', icon: 'restaurant', description: 'Standard meal times' },
+  { id: 'flexible', name: 'Flexible', icon: 'fast-food', description: 'Snack-based throughout day' },
+  { id: 'none', name: 'None', icon: 'close-circle', description: 'No meal breaks needed' }
+];
+
 export default function AITaskGenerator() {
   const { user, setUser } = useGlobalContext();
   const [prompt, setPrompt] = useState('');
   const [generatedTasks, setGeneratedTasks] = useState([]);
   const [selectedTasks, setSelectedTasks] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationDate, setGenerationDate] = useState(new Date());
   const [isAddingTasks, setIsAddingTasks] = useState(false);
   const [apiError, setApiError] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   
   // Preset and customization options
   const [selectedPreset, setSelectedPreset] = useState(null);
@@ -79,6 +101,12 @@ export default function AITaskGenerator() {
   
   // Add animation state
   const [modalAnimatedValue] = useState(new Animated.Value(0));
+  
+  // Add new state for additional options
+  const [energyLevel, setEnergyLevel] = useState('balanced');
+  const [focusPreference, setFocusPreference] = useState('flexible');
+  const [mealPreference, setMealPreference] = useState('regular');
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   
   // Load user data when component mounts
   useEffect(() => {
@@ -144,7 +172,6 @@ export default function AITaskGenerator() {
     setApiError(null);
     
     try {
-      // Build the enhanced prompt
       const taskCountByDetail = {
         'broad': '4-6',
         'balanced': '6-8',
@@ -153,21 +180,33 @@ export default function AITaskGenerator() {
       
       const taskCountRange = taskCountByDetail[detailLevel];
       
-      // Prepare prompt for OpenAI with all customization options
-      const fullPrompt = `Generate a detailed personalized to-do list with ${taskCountRange} tasks for: "${prompt}".
-Your schedule should start at ${wakeUpTime} (wake up time) and end by ${sleepTime} (sleep time).
-${includeBreaks ? 'Include appropriate breaks and meal times.' : 'Focus on productive tasks without breaks.'}
-${detailLevel === 'detailed' ? 'Make tasks very specific with clear deliverables.' : 
-  detailLevel === 'broad' ? 'Keep tasks broader and higher-level.' : 
+      const fullPrompt = `As a personal productivity assistant, create a realistic and well-structured daily schedule for: "${prompt}".
+
+Key Requirements:
+1. Schedule starts at ${wakeUpTime} and ends by ${sleepTime}
+2. Generate ${taskCountRange} tasks that are:
+   - Realistic and achievable
+   - Include clear, actionable descriptions
+   - Have appropriate durations (30, 60, 90, 120, 180 minutes)
+   - Follow a logical sequence
+3. Energy Level: ${ENERGY_LEVELS.find(l => l.id === energyLevel).name}
+   - ${ENERGY_LEVELS.find(l => l.id === energyLevel).description}
+4. Focus Style: ${FOCUS_PREFERENCES.find(f => f.id === focusPreference).name}
+   - ${FOCUS_PREFERENCES.find(f => f.id === focusPreference).description}
+5. Meal Schedule: ${MEAL_PREFERENCES.find(m => m.id === mealPreference).name}
+   - ${MEAL_PREFERENCES.find(m => m.id === mealPreference).description}
+6. ${includeBreaks ? 'Include appropriate breaks between tasks.' : 'Focus on productive tasks without breaks.'}
+7. ${detailLevel === 'detailed' ? 'Break down tasks into specific, actionable steps.' : 
+  detailLevel === 'broad' ? 'Keep tasks high-level and flexible.' : 
   'Balance between specific and broader tasks.'}
 
-Format as a JSON array of objects, each with these properties:
-- "text": clear, actionable task descriptions
-- "startTime": in 24-hour format (HH:MM) between ${wakeUpTime} and ${sleepTime}
-- "duration": task duration in minutes (30, 60, 90, 120, 180, etc.)
-- "completed": always set to false
-
-Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", "duration": 30, "completed": false}, {"text": "Check emails and prioritize day's work", "startTime": "09:30", "duration": 60, "completed": false}]`;
+Format the response as a JSON array of task objects with these properties:
+{
+  "text": "Clear, actionable task description",
+  "startTime": "HH:MM in 24-hour format",
+  "duration": duration in minutes (30, 60, 90, 120, 180, etc.),
+  "completed": false
+}`;
 
       // Use the openai client that's already initialized with env API key
       const completion = await openai.chat.completions.create({
@@ -175,7 +214,7 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
         messages: [
           {
             role: "system",
-            content: "You are a personal productivity assistant specializing in creating thoughtful, realistic daily schedules. Consider the user's needs and create an optimal plan for their day."
+            content: "You are an expert personal productivity assistant specializing in creating realistic, well-structured daily schedules. Consider human factors like energy levels, focus time, and natural breaks when planning tasks. Ensure tasks are achievable and follow a logical sequence."
           },
           {
             role: "user",
@@ -183,7 +222,7 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
           }
         ],
         temperature: 0.7,
-        max_tokens: 800
+        max_tokens: 1000
       });
       
       // Extract and parse the JSON response
@@ -268,7 +307,7 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
     }
   };
   
-  // Add selected tasks to the to-do list
+  // Update addSelectedTasks function to use selectedDate
   const addSelectedTasks = async () => {
     if (!user) {
       Alert.alert('Error', 'User data not loaded. Please try again.');
@@ -285,7 +324,7 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
         startTime: task.startTime || "09:00",
         duration: task.duration || 60,
         completed: false,
-        date: formatDate(generationDate)
+        date: formatDate(selectedDate)
       }));
     
     if (tasksToAdd.length === 0) {
@@ -295,25 +334,23 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
     
     setIsAddingTasks(true);
     
-    axios.put('https://809a-109-245-199-118.ngrok-free.app/addaitasks', {
+    axios.put('https://4c00-109-245-199-118.ngrok-free.app/addaitasks', {
       userID: user._id,
       tasks: tasksToAdd
     })
     .then(response => {
-
       if(response.status === 200){
         setUser(response.data);
         AsyncStorage.setItem('user', JSON.stringify(response.data));
-      router.back();
-      router.navigate({
-        pathname: "/main/TimelineView",
-      });
-    }
+        router.back();
+        router.navigate({
+          pathname: "/main/TimelineView",
+        });
+      }
     })
     .catch(error => {
       console.error('Error adding AI tasks:', error);
     });
-
   };
   
   // Determine if we should show the overlay gradient
@@ -528,211 +565,263 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
               <View className="h-10 w-10" />
             </View>
             
-            {/* Illustration */}
-            {!generatedTasks.length && !isGenerating && (
-              <View className="items-center mb-8">
-                <View className="w-36 h-36 bg-gray-200 rounded-full items-center justify-center mb-4">
-                  <Ionicons name="bulb" size={64} color="#333" />
-                </View>
-                <Text className="text-center text-lg font-semibold text-gray-800 mb-1">
-                  AI Task Generator
-                </Text>
-                <Text className="text-center text-gray-600 px-8 mb-4">
-                  Describe your day or pick a template and let AI create a personalized to-do list
-                </Text>
-              </View>
-            )}
-            
             {/* Prompt Input and Options */}
             {(!generatedTasks.length || isGenerating) && (
               <View className="mb-6">
-                {/* Template Selection */}
-                <View className="mb-4">
-                  <Text className="text-gray-700 font-medium mb-2">Quick Templates</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
+                {/* Main Input Card */}
+                <View className="bg-white rounded-3xl p-6 mb-6 shadow-sm border border-gray-100">
+                  <View className="flex-row items-center mb-4">
+                    <View className="w-12 h-12 rounded-full bg-black items-center justify-center mr-4">
+                      <Ionicons name="sparkles" size={24} color="#fff" />
+                    </View>
+                    <View>
+                      <Text className="text-2xl font-bold text-gray-900">Plan Your Day</Text>
+                      <Text className="text-gray-500">Let AI help you organize</Text>
+                    </View>
+                  </View>
+
+                  <TextInput
+                    className="text-gray-800 text-lg mb-4"
+                    placeholder="What kind of day do you want to plan?"
+                    placeholderTextColor="#999"
+                    value={prompt}
+                    onChangeText={setPrompt}
+                    multiline={true}
+                    numberOfLines={2}
+                    autoFocus={!isGenerating}
+                    editable={!isGenerating}
+                  />
+
+                  <View className="flex-row justify-between items-center">
+                    <View className="flex-row space-x-2">
+                      <TouchableOpacity className="p-2 rounded-full bg-gray-100">
+                        <Ionicons name="mic" size={18} color="#666" />
+                      </TouchableOpacity>
+                      <TouchableOpacity className="p-2 rounded-full bg-gray-100">
+                        <Ionicons name="image" size={18} color="#666" />
+                      </TouchableOpacity>
+                    </View>
+                    <Text className="text-gray-400 text-sm">{prompt.length}/200</Text>
+                  </View>
+                </View>
+
+                {/* Templates Grid */}
+                <View className="mb-6">
+                  <Text className="text-gray-900 font-medium mb-3">Quick Templates</Text>
+                  <View className="flex-row flex-wrap justify-between">
                     {PRESETS.map(preset => (
                       <TouchableOpacity 
                         key={preset.id}
-                        className={`mr-3 py-2 px-3 rounded-full flex-row items-center ${
-                          selectedPreset === preset.id ? 'bg-black' : 'bg-white border border-gray-200'
+                        className={`w-[48%] mb-3 p-4 rounded-2xl ${
+                          selectedPreset === preset.id ? 'bg-black' : 'bg-gray-100'
                         }`}
                         onPress={() => handlePresetSelect(preset.id)}
                       >
-                        <Ionicons 
-                          name={preset.icon} 
-                          size={16} 
-                          color={selectedPreset === preset.id ? '#fff' : '#666'} 
-                          style={{ marginRight: 6 }}
-                        />
+                        <View className={`w-10 h-10 rounded-full items-center justify-center mb-2 ${
+                          selectedPreset === preset.id ? 'bg-white' : 'bg-white/80'
+                        }`}>
+                          <Ionicons 
+                            name={preset.icon} 
+                            size={20} 
+                            color={selectedPreset === preset.id ? '#000' : '#666'} 
+                          />
+                        </View>
                         <Text className={`${
-                          selectedPreset === preset.id ? 'text-white' : 'text-gray-700'
+                          selectedPreset === preset.id ? 'text-white' : 'text-gray-900'
                         } font-medium`}>
                           {preset.name}
                         </Text>
                       </TouchableOpacity>
                     ))}
-                  </ScrollView>
-                </View>
-                
-                {/* Day Description */}
-                <View className="mb-4">
-                  <View className="flex-row mb-2 items-center">
-                    <Ionicons name="text" size={18} color="#666" style={{ marginRight: 6 }} />
-                    <Text className="text-gray-700 font-medium">Describe Your Day</Text>
-                  </View>
-                  <TextInput
-                    className="bg-white border border-gray-200 text-gray-800 py-3 px-4 rounded-xl text-base shadow-sm"
-                    placeholder="e.g., 'A productive work day with focus time' or 'A relaxing self-care day'"
-                    placeholderTextColor="#999"
-                    value={prompt}
-                    onChangeText={setPrompt}
-                    multiline={true}
-                    numberOfLines={3}
-                    autoFocus={!isGenerating}
-                    editable={!isGenerating}
-                  />
-                </View>
-                
-                {/* Date Selection */}
-                <View className="mb-4">
-                  <View className="flex-row mb-2 items-center">
-                    <Ionicons name="calendar" size={18} color="#666" style={{ marginRight: 6 }} />
-                    <Text className="text-gray-700 font-medium">For which day?</Text>
-                  </View>
-                  <View className="flex-row">
-                    <TouchableOpacity 
-                      className={`py-2 px-4 rounded-full mr-2 ${generationDate.getDate() === new Date().getDate() ? 'bg-black' : 'bg-white border border-gray-200'}`}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setGenerationDate(new Date());
-                      }}
-                    >
-                      <Text className={`${generationDate.getDate() === new Date().getDate() ? 'text-white' : 'text-gray-700'}`}>Today</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      className={`py-2 px-4 rounded-full mr-2 ${
-                        generationDate.getDate() === new Date().getDate() + 1 ? 'bg-black' : 'bg-white border border-gray-200'
-                      }`}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        const tomorrow = new Date();
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        setGenerationDate(tomorrow);
-                      }}
-                    >
-                      <Text className={`${
-                        generationDate.getDate() === new Date().getDate() + 1 ? 'text-white' : 'text-gray-700'
-                      }`}>Tomorrow</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      className="py-2 px-4 rounded-full bg-white border border-gray-200"
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        // Open date picker or calendar modal
-                      }}
-                    >
-                      <Text className="text-gray-700">Choose</Text>
-                    </TouchableOpacity>
                   </View>
                 </View>
-                
-                {/* Advanced Options */}
-                <View className="mb-4">
-                  <TouchableOpacity className="flex-row mb-2 items-center" onPress={() => setShowAdvanced(!showAdvanced)}>
-                    <Ionicons name="options" size={18} color="#666" style={{ marginRight: 6 }} />
-                    <Text className="text-gray-700 font-medium">Customization Options</Text>
-                  </TouchableOpacity>
-                  
-                  {/* Task Detail Level */}
-                  <View className="mb-3 bg-white p-3 rounded-xl border border-gray-200">
-                    <Text className="text-gray-700 mb-2">Task Detail Level:</Text>
-                    <View className="flex-row justify-between">
-                      {TASK_DETAIL_LEVELS.map(level => (
-                        <TouchableOpacity
-                          key={level.id}
-                          className={`flex-1 p-2 mr-2 rounded-lg items-center ${
-                            detailLevel === level.id ? 'bg-gray-100 border border-gray-300' : 'bg-white border border-gray-200'
-                          }`}
-                          onPress={() => {
-                            Haptics.selectionAsync();
-                            setDetailLevel(level.id);
-                          }}
-                        >
-                          <Text className={`${detailLevel === level.id ? 'text-gray-900 font-medium' : 'text-gray-700'}`}>
-                            {level.name}
-                          </Text>
-                          <Text className="text-gray-500 text-xs text-center mt-1">{level.description}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+
+                {/* Settings Card */}
+                <View className="bg-white rounded-2xl p-4 mb-6 border border-gray-100">
+                  <View className="flex-row items-center justify-between mb-4">
+                    <Text className="text-gray-900 font-medium">Schedule Settings</Text>
+                    <TouchableOpacity 
+                      className="p-2 rounded-full bg-gray-100"
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setShowAdvancedOptions(!showAdvancedOptions);
+                      }}
+                    >
+                      <Ionicons 
+                        name={showAdvancedOptions ? "chevron-up" : "chevron-down"} 
+                        size={20} 
+                        color="#666" 
+                      />
+                    </TouchableOpacity>
                   </View>
-                  
-                  {/* Time Range */}
-                  <View className="mb-3 bg-white p-3 rounded-xl border border-gray-200">
-                    <Text className="text-gray-700 mb-2">Daily Schedule:</Text>
-                    <View className="flex-row justify-between items-center">
-                      <View className="flex-1 mr-3">
-                        <Text className="text-gray-500 text-xs mb-1">Wake Up</Text>
-                        <TouchableOpacity 
-                          className="bg-gray-100 py-2 px-3 rounded-lg border border-gray-200"
-                          onPress={() => {
-                            Haptics.selectionAsync();
-                            openTimePicker('wakeUp');
-                          }}
-                        >
-                          <Text className="text-gray-700 text-center">{wakeUpTime}</Text>
-                        </TouchableOpacity>
+
+                  <View className="flex-row justify-between items-center mb-4">
+                    <TouchableOpacity 
+                      className="flex-1 bg-gray-100 py-3 px-4 rounded-xl mr-2"
+                      onPress={() => openTimePicker('wakeUp')}
+                    >
+                      <Text className="text-gray-500 text-xs mb-1">Wake Up</Text>
+                      <Text className="text-gray-900 font-medium">{wakeUpTime}</Text>
+                    </TouchableOpacity>
+                    <View className="w-8 h-0.5 bg-gray-300" />
+                    <TouchableOpacity 
+                      className="flex-1 bg-gray-100 py-3 px-4 rounded-xl ml-2"
+                      onPress={() => openTimePicker('sleep')}
+                    >
+                      <Text className="text-gray-500 text-xs mb-1">Sleep</Text>
+                      <Text className="text-gray-900 font-medium">{sleepTime}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View className="flex-row justify-between mb-4">
+                    {TASK_DETAIL_LEVELS.map(level => (
+                      <TouchableOpacity
+                        key={level.id}
+                        className={`flex-1 py-2 px-3 rounded-lg mr-2 ${
+                          detailLevel === level.id ? 'bg-black' : 'bg-gray-100'
+                        }`}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setDetailLevel(level.id);
+                        }}
+                      >
+                        <Text className={`${
+                          detailLevel === level.id ? 'text-white' : 'text-gray-900'
+                        } text-sm font-medium text-center`}>
+                          {level.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {showAdvancedOptions && (
+                    <>
+                      {/* Energy Level */}
+                      <View className="mb-4">
+                        <Text className="text-gray-700 text-sm mb-2">Energy Level</Text>
+                        <View className="flex-row flex-wrap justify-between">
+                          {ENERGY_LEVELS.map(level => (
+                            <TouchableOpacity
+                              key={level.id}
+                              className={`w-[48%] mb-2 p-3 rounded-xl ${
+                                energyLevel === level.id ? 'bg-black' : 'bg-gray-100'
+                              }`}
+                              onPress={() => {
+                                Haptics.selectionAsync();
+                                setEnergyLevel(level.id);
+                              }}
+                            >
+                              <View className="flex-row items-center mb-1">
+                                <Ionicons 
+                                  name={level.icon} 
+                                  size={16} 
+                                  color={energyLevel === level.id ? '#fff' : '#666'} 
+                                />
+                                <Text className={`${
+                                  energyLevel === level.id ? 'text-white' : 'text-gray-900'
+                                } text-sm font-medium ml-1`}>
+                                  {level.name}
+                                </Text>
+                              </View>
+                              <Text className={`${
+                                energyLevel === level.id ? 'text-gray-300' : 'text-gray-500'
+                              } text-xs`}>
+                                {level.description}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
                       </View>
-                      <Text className="text-gray-500">to</Text>
-                      <View className="flex-1 ml-3">
-                        <Text className="text-gray-500 text-xs mb-1">Sleep</Text>
-                        <TouchableOpacity 
-                          className="bg-gray-100 py-2 px-3 rounded-lg border border-gray-200"
-                          onPress={() => {
-                            Haptics.selectionAsync();
-                            openTimePicker('sleep');
-                          }}
-                        >
-                          <Text className="text-gray-700 text-center">{sleepTime}</Text>
-                        </TouchableOpacity>
+
+                      {/* Focus Preference */}
+                      <View className="mb-4">
+                        <Text className="text-gray-700 text-sm mb-2">Focus Style</Text>
+                        <View className="flex-row flex-wrap justify-between">
+                          {FOCUS_PREFERENCES.map(pref => (
+                            <TouchableOpacity
+                              key={pref.id}
+                              className={`w-[48%] mb-2 p-3 rounded-xl ${
+                                focusPreference === pref.id ? 'bg-black' : 'bg-gray-100'
+                              }`}
+                              onPress={() => {
+                                Haptics.selectionAsync();
+                                setFocusPreference(pref.id);
+                              }}
+                            >
+                              <View className="flex-row items-center mb-1">
+                                <Ionicons 
+                                  name={pref.icon} 
+                                  size={16} 
+                                  color={focusPreference === pref.id ? '#fff' : '#666'} 
+                                />
+                                <Text className={`${
+                                  focusPreference === pref.id ? 'text-white' : 'text-gray-900'
+                                } text-sm font-medium ml-1`}>
+                                  {pref.name}
+                                </Text>
+                              </View>
+                              <Text className={`${
+                                focusPreference === pref.id ? 'text-gray-300' : 'text-gray-500'
+                              } text-xs`}>
+                                {pref.description}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
                       </View>
-                    </View>
-                  </View>
-                  
-                  {/* Include Breaks Toggle */}
-                  <TouchableOpacity 
-                    className="mb-3 bg-white p-3 rounded-xl border border-gray-200 flex-row justify-between items-center"
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setIncludeBreaks(!includeBreaks);
-                    }}
-                  >
-                    <Text className="text-gray-700">Include Breaks & Meals:</Text>
-                    <View className={`w-6 h-6 rounded-full ${includeBreaks ? 'bg-green-500' : 'bg-gray-300'} items-center justify-center`}>
-                      {includeBreaks && (
-                        <Ionicons name="checkmark" size={16} color="#fff" />
-                      )}
-                    </View>
-                  </TouchableOpacity>
+
+                      {/* Meal Preference */}
+                      <View className="mb-4">
+                        <Text className="text-gray-700 text-sm mb-2">Meal Schedule</Text>
+                        <View className="flex-row flex-wrap justify-between">
+                          {MEAL_PREFERENCES.map(pref => (
+                            <TouchableOpacity
+                              key={pref.id}
+                              className={`w-[48%] mb-2 p-3 rounded-xl ${
+                                mealPreference === pref.id ? 'bg-black' : 'bg-gray-100'
+                              }`}
+                              onPress={() => {
+                                Haptics.selectionAsync();
+                                setMealPreference(pref.id);
+                              }}
+                            >
+                              <View className="flex-row items-center mb-1">
+                                <Ionicons 
+                                  name={pref.icon} 
+                                  size={16} 
+                                  color={mealPreference === pref.id ? '#fff' : '#666'} 
+                                />
+                                <Text className={`${
+                                  mealPreference === pref.id ? 'text-white' : 'text-gray-900'
+                                } text-sm font-medium ml-1`}>
+                                  {pref.name}
+                                </Text>
+                              </View>
+                              <Text className={`${
+                                mealPreference === pref.id ? 'text-gray-300' : 'text-gray-500'
+                              } text-xs`}>
+                                {pref.description}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    </>
+                  )}
                 </View>
-                
-                {/* Error message if API call fails */}
-                {apiError && (
-                  <View className="mt-2 p-3 bg-red-50 rounded-xl border border-red-200">
-                    <Text className="text-red-600 text-sm">{apiError}</Text>
-                  </View>
-                )}
-                
+
                 {/* Generate Button */}
                 <TouchableOpacity 
-                  className="bg-black py-3 px-4 rounded-xl mt-2 shadow-sm"
+                  className={`bg-black py-4 rounded-2xl shadow-sm flex-row justify-center items-center ${
+                    isGenerating ? 'opacity-70' : ''
+                  }`}
                   onPress={generateTasks}
                   disabled={isGenerating}
                 >
                   {isGenerating ? (
                     <>
                       <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                      <Text className="text-white font-semibold">Generating...</Text>
+                      <Text className="text-white font-semibold">Generating Tasks...</Text>
                     </>
                   ) : (
                     <>
@@ -751,7 +840,7 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
                   <View className="flex-row items-center">
                     <Ionicons name="list" size={18} color="#666" style={{ marginRight: 6 }} />
                     <Text className="text-gray-800 font-semibold">
-                      Tasks for {getDateLabel(generationDate)}
+                      Generated Tasks
                     </Text>
                   </View>
                   <TouchableOpacity 
@@ -766,15 +855,18 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
                   </TouchableOpacity>
                 </View>
                 
-                <Text className="text-gray-600 italic mb-4 text-sm">
-                  "{prompt}"
-                </Text>
+                <View className="bg-white rounded-xl p-4 mb-4 border border-gray-200">
+                  <Text className="text-gray-600 text-sm mb-2">Your request:</Text>
+                  <Text className="text-gray-800 italic">
+                    "{prompt}"
+                  </Text>
+                </View>
                 
                 <View className="mb-6">
-                  {generatedTasks.map((task) => (
+                  {generatedTasks.map((task, index) => (
                     <TouchableOpacity 
                       key={task.id}
-                      className={`flex-row items-center py-3 px-4 ${selectedTasks[task.id] ? 'bg-white' : 'bg-gray-100'} rounded-xl mb-2 border ${selectedTasks[task.id] ? 'border-gray-300' : 'border-gray-200'}`}
+                      className={`flex-row items-center py-4 px-4 ${selectedTasks[task.id] ? 'bg-white' : 'bg-gray-50'} rounded-xl mb-3 border ${selectedTasks[task.id] ? 'border-gray-300' : 'border-gray-200'}`}
                       onPress={() => toggleTaskSelection(task.id)}
                     >
                       <View className={`h-5 w-5 rounded-full mr-3 border items-center justify-center ${
@@ -789,36 +881,62 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
                         <Text className={`text-base ${selectedTasks[task.id] ? 'text-gray-800' : 'text-gray-500'}`}>
                           {task.text}
                         </Text>
-                        <Text className="text-gray-500 text-xs">
-                          <Ionicons name="time-outline" size={12} color="#666" style={{ marginRight: 2 }} />
-                          {task.startTime} 
-                          <Ionicons name="hourglass-outline" size={12} color="#666" style={{ marginLeft: 8, marginRight: 2 }} />
-                          {task.duration} min
-                        </Text>
+                        <View className="flex-row items-center mt-1">
+                          <View className="flex-row items-center bg-gray-100 px-2 py-1 rounded-full mr-2">
+                            <Ionicons name="time-outline" size={12} color="#666" style={{ marginRight: 4 }} />
+                            <Text className="text-gray-600 text-xs">{task.startTime}</Text>
+                          </View>
+                          <View className="flex-row items-center bg-gray-100 px-2 py-1 rounded-full">
+                            <Ionicons name="hourglass-outline" size={12} color="#666" style={{ marginRight: 4 }} />
+                            <Text className="text-gray-600 text-xs">{task.duration} min</Text>
+                          </View>
+                        </View>
                       </View>
                     </TouchableOpacity>
                   ))}
                 </View>
                 
-                {/* Add to Todo List Button */}
-                <TouchableOpacity 
-                  className={`bg-black py-3 rounded-xl mb-8 shadow-sm ${isAddingTasks ? 'opacity-70' : ''}`}
-                  onPress={addSelectedTasks}
-                  disabled={isAddingTasks}
-                >
-                  {isAddingTasks ? (
-                    <View className="flex-row justify-center items-center">
-                      <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                      <Text className="text-white text-center font-semibold">
-                        Adding Tasks...
-                      </Text>
+                {/* Date Selection and Add to Todo List Button */}
+                <View className="mb-8">
+                  <TouchableOpacity 
+                    className="bg-white py-4 px-4 rounded-xl mb-4 border border-gray-200 flex-row justify-between items-center"
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setShowDatePicker(true);
+                    }}
+                  >
+                    <View className="flex-row items-center">
+                      <Ionicons name="calendar" size={20} color="#666" style={{ marginRight: 8 }} />
+                      <Text className="text-gray-800 font-medium">Add tasks for</Text>
                     </View>
-                  ) : (
-                    <Text className="text-white text-center font-semibold">
-                      Add Selected Tasks to My Day
-                    </Text>
-                  )}
-                </TouchableOpacity>
+                    <View className="flex-row items-center">
+                      <Text className="text-gray-600 mr-2">{getDateLabel(selectedDate)}</Text>
+                      <Ionicons name="chevron-forward" size={16} color="#666" />
+                    </View>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    className={`bg-black py-4 rounded-xl shadow-sm ${isAddingTasks ? 'opacity-70' : ''}`}
+                    onPress={addSelectedTasks}
+                    disabled={isAddingTasks}
+                  >
+                    {isAddingTasks ? (
+                      <View className="flex-row justify-center items-center">
+                        <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                        <Text className="text-white text-center font-semibold">
+                          Adding Tasks...
+                        </Text>
+                      </View>
+                    ) : (
+                      <View className="flex-row justify-center items-center">
+                        <Ionicons name="add-circle" size={20} color="#fff" style={{ marginRight: 8 }} />
+                        <Text className="text-white text-center font-semibold">
+                          Add Selected Tasks to My Day
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </ScrollView>
@@ -840,6 +958,74 @@ Example: [{"text": "Morning meditation and goal setting", "startTime": "07:00", 
         onSleepTimeChange, 
         closeSleepPicker,
         "Set Sleep Time"
+      )}
+
+      {/* Date Picker Modal */}
+      {showDatePicker && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <View style={{
+            backgroundColor: 'white',
+            borderRadius: 16,
+            width: '85%',
+            maxWidth: 320,
+            padding: 16,
+          }}>
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 16,
+            }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: '600',
+                color: '#333',
+              }}>Select Date</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="spinner"
+              onChange={(event, date) => {
+                if (date) {
+                  Haptics.selectionAsync();
+                  setSelectedDate(date);
+                }
+              }}
+              minimumDate={new Date()}
+              style={{ height: 150, width: '100%' }}
+              textColor="#333"
+            />
+            <TouchableOpacity
+              style={{
+                marginTop: 16,
+                backgroundColor: 'black',
+                paddingVertical: 12,
+                borderRadius: 12,
+              }}
+              onPress={() => setShowDatePicker(false)}
+            >
+              <Text style={{
+                color: 'white',
+                textAlign: 'center',
+                fontWeight: '500',
+              }}>Confirm</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
     </SafeAreaView>
   );
