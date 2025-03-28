@@ -113,7 +113,7 @@ export default function EditTask() {
         duration: (durationHours * 60) + durationMinutes
       };
       
-      const response = await axios.put('https://4c00-109-245-199-118.ngrok-free.app/updatetaskfully', {
+      const response = await axios.put('https://a1e4-109-245-199-118.ngrok-free.app/updatetaskfully', {
         taskId: task.id,
         task: updatedTask,
         userID: user._id

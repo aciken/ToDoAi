@@ -35,10 +35,10 @@ const SAMPLE_TASKS = [
   { id: 10, text: 'Sleep', startTime: '22:00', duration: 480, icon: 'moon', completed: false, date: '2025-03-25' },
 ];
 
-const HOUR_HEIGHT = 80; // Increased height for better visibility
-const TIMELINE_WIDTH = Dimensions.get('window').width - 48; // Adjusted width
+const HOUR_HEIGHT = 120; // Increased height for more accurate positioning
+const TIMELINE_WIDTH = Dimensions.get('window').width - 48;
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const HEADER_HEIGHT = 135; // Approximate header height with padding
+const HEADER_HEIGHT = 135;
 
 export default function TimelineView() {
   const { user, setUser } = useGlobalContext();
@@ -259,100 +259,18 @@ export default function TimelineView() {
   // Calculate task position and height
   const getTaskStyle = (task, index) => {
     const startMinutes = timeToMinutes(task.startTime);
-    const top = ((startMinutes + 15) / 60) * HOUR_HEIGHT; // 15-minute offset
-    const height = Math.max((task.duration / 60) * HOUR_HEIGHT, 60);
+    const top = ((startMinutes) * HOUR_HEIGHT) / 60; // Keep precise calculation
     
-    // Ensure we don't try to access undefined animation values
+    // Get animation safely
     const animation = taskAnims[index] || new Animated.Value(1);
-    
-    // Get all tasks for the current date
-    const tasksForCurrentDate = getTasksForDate(selectedDate);
-    
-    // Find overlapping tasks (tasks that overlap in time with this task)
-    const thisStartTime = startMinutes + 15;
-    const thisEndTime = thisStartTime + (task.duration / 60) * 60;
-    
-    // Find all tasks that overlap with this one
-    const overlappingTasks = [];
-    const overlapGroups = {};
-    
-    // Assign tasks to columns to prevent overlap
-    tasksForCurrentDate.forEach((t, i) => {
-      if (i === index) return; // Skip the current task
-      
-      const otherStartTime = timeToMinutes(t.startTime) + 15;
-      const otherEndTime = otherStartTime + (t.duration / 60) * 60;
-      
-      // Check if tasks overlap in time
-      if (thisStartTime < otherEndTime && thisEndTime > otherStartTime) {
-        overlappingTasks.push({ index: i, task: t });
-      }
-    });
-    
-    // Function to find which column to place the task in
-    const findColumn = (task) => {
-      const taskStartMinutes = timeToMinutes(task.startTime) + 15;
-      const taskEndMinutes = taskStartMinutes + (task.duration / 60) * 60;
-      
-      // Group tasks by overlap
-      let group = -1;
-      for (let g in overlapGroups) {
-        const groupTasks = overlapGroups[g];
-        let overlaps = false;
-        
-        for (let t of groupTasks) {
-          const tStartMinutes = timeToMinutes(t.startTime) + 15;
-          const tEndMinutes = tStartMinutes + (t.duration / 60) * 60;
-          
-          if (taskStartMinutes < tEndMinutes && taskEndMinutes > tStartMinutes) {
-            overlaps = true;
-            break;
-          }
-        }
-        
-        if (!overlaps) {
-          group = parseInt(g);
-          break;
-        }
-      }
-      
-      if (group === -1) {
-        group = Object.keys(overlapGroups).length;
-        overlapGroups[group] = [];
-      }
-      
-      overlapGroups[group].push(task);
-      return group;
-    };
-    
-    // Find column for current task
-    let column = 0;
-    
-    if (overlappingTasks.length > 0) {
-      // Sort overlapping tasks by start time
-      tasksForCurrentDate.sort((a, b) => {
-        return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
-      }).forEach((t) => {
-        if (!overlapGroups[findColumn(t)]) {
-          overlapGroups[findColumn(t)] = [];
-        }
-      });
-      
-      // Find column for current task
-      column = findColumn(task);
-    }
-    
-    // Calculate width based on number of columns
-    const columns = Math.max(1, Object.keys(overlapGroups).length);
-    const columnWidth = (SCREEN_WIDTH - 96) / columns;
-    const columnGap = 4; // Gap between columns
-    
+  
+    // Return the simplified style object (assuming no overlaps for clarity)
     return {
       position: 'absolute',
       top,
-      left: 48 + (column * (columnWidth + columnGap)),
-      width: columnWidth - columnGap,
-      height,
+      left: 48,
+      width: SCREEN_WIDTH - 96,
+      height: (task.duration * HOUR_HEIGHT) / 60,
       backgroundColor: task.completed ? '#F3F4F6' : '#FFFFFF',
       borderRadius: 12,
       padding: 10,
@@ -364,14 +282,18 @@ export default function TimelineView() {
       borderWidth: 1,
       borderColor: task.completed ? '#E5E7EB' : '#F3F4F6',
       transform: [
-        { scale: animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.95, 1]
-        })},
-        { translateY: animation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [20, 0]
-        })}
+        {
+          scale: animation.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.95, 1],
+          }),
+        },
+        {
+          translateY: animation.interpolate({
+            inputRange: [0, 1],
+            outputRange: [20, 0],
+          }),
+        },
       ],
       opacity: animation,
     };
@@ -419,7 +341,7 @@ export default function TimelineView() {
     
     // Update in backend
     if (user && user._id) {
-      axios.put('https://4c00-109-245-199-118.ngrok-free.app/updatetask', {
+      axios.put('https://a1e4-109-245-199-118.ngrok-free.app/updatetask', {
         taskId: taskId,
         completed: updatedTask.completed,
         userID: user._id
@@ -497,7 +419,7 @@ export default function TimelineView() {
     
     // Update in backend
     if (user && user._id) {
-      axios.delete('https://4c00-109-245-199-118.ngrok-free.app/deletetask', {
+      axios.delete('https://a1e4-109-245-199-118.ngrok-free.app/deletetask', {
         data: {
           taskId: selectedTask.id,
           userID: user._id
@@ -704,11 +626,11 @@ export default function TimelineView() {
                       left: 0,
                       right: 0,
                       flexDirection: 'row',
-                      alignItems: 'center',
+                      alignItems: 'flex-start',
                       height: HOUR_HEIGHT,
                     }}
                   >
-                    <Text className="text-gray-400 text-xs w-12">
+                    <Text className="text-gray-400 text-xs w-12" style={{ marginTop: 8 }}>
                       {i.toString().padStart(2, '0')}:00
                     </Text>
                     <View
@@ -717,6 +639,7 @@ export default function TimelineView() {
                         height: 1,
                         backgroundColor: '#E5E7EB',
                         marginLeft: 8,
+                        marginTop: 8,
                       }}
                     />
                   </View>
